@@ -77,6 +77,64 @@ final<-final[-which(final$id %in% unique(final[which(final$risk.allele != final$
 ## a matrix of log(OR) - so they are symmetrical. Also adds a control column  where 
 ## all OR =1 or log(or)=0
 
+## add the allele frequencies
+load("/home/ob219/scratch/as_basis/tmp/all_or_shared.RData")
+load("/home/ob219/scratch/as_basis/1KG_support/all_EUR_support.RData")
+## get just the gt that we need
+tmp<-unique(final)[,c('chr','position','risk.allele','other.allele'),with=FALSE]
+setkey(all.eur,chr,position)
+setkey(tmp,chr,position)
+support<-merge(all.eur,tmp,by.x=c('chr','position'),by.y=c('chr','position'))
+## next check alleles
+support$risk.allele.freq<-double(length=nrow(support))
+ok.idx<-with(support,which(a1==risk.allele & a2==other.allele))
+support[ok.idx,]$risk.allele.freq<-support[ok.idx,]$a1.f
+flip.idx<-with(support,which(a2==risk.allele & a1==other.allele))
+support[flip.idx,]$risk.allele.freq<-1-support[flip.idx,]$a1.f
+csupport<-support[,c('chr','position','name','risk.allele.freq'),with=FALSE]
+wrong.idx<-setdiff(1:nrow(support),c(ok.idx,flip.idx))
+## add these back to final
+final.t<-merge(final,csupport,by.x=c('chr','position'),by.y=c('chr','position'))
+
+
+## next we calculate scale factor for each SNP 
+## this should be done on a study by study basis
+
+# a is a1 counts ctl 
+# b is a2 counts ctl
+# c is a1 counts cas
+# d is a2 counts cas
+
+## calc a a=n0(1-f)
+
+ca<-function(n0,f){
+    n0*(1-f)
+}
+
+cb<-function(n0,f){
+    n0*f
+}
+
+cc<-function(n1,a,b,theta){
+    (n1*a)/(a+(b*theta))
+}
+
+cd<-function(n1,a,b,theta){
+    (n1*b)/(a+(b*theta))
+}
+
+calc.sf<-function(n0,n1,f,theta){
+    a<-ca(n0,f)
+    b<-cb(n0,f)
+    c<-cc(n1,a,b,theta)
+    d<-cd(n1,a,b,theta)
+    recip.sm<-sum(sapply(c(a,b,c,d),function(f) 1/f))
+    return(sqrt(recip.sm))
+}
+
+## todo get a matrix of cases and controls for each of the studies being considered.
+
+
 createORMatrix<-function(DT,p.val.thresh=1){
    tmp<-unique(DT[DT$p.val<p.val.thresh,]$id)
    tmp<-DT[which(DT$id %in% tmp),]
@@ -92,8 +150,8 @@ createORMatrix<-function(DT,p.val.thresh=1){
 }
 
 no.p<-createORMatrix(final)
-save(no.p,file="/home/ob219/scratch/as_basis/tmp/no_p_lor_matrix.RData")
-save(final,file="/home/ob219/scratch/as_basis/tmp/all_or_shared.RData")
+#save(no.p,file="/home/ob219/scratch/as_basis/tmp/no_p_lor_matrix.RData")
+#save(final,file="/home/ob219/scratch/as_basis/tmp/all_or_shared.RData")
 
 
 ### p.vals cut offs 
