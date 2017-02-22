@@ -104,6 +104,17 @@ ms.out<-processIMB(ms)
 ms.out<-subset(ms.out,!is.na(ms.out$or))
 save(ms.out,file=file.path(process.dir,'MS.RData'))
 
+##PBC
+pbc<-fread(paste0(raw.dir,'hg19_gwas_pbc_cordell_4_20_0.tab'))
+## a bunch (7219) of pbc don't appear to have proper alleles from some reason
+## perhaps go back and fix by taking raw data and remapping to b37 for time being
+## filter out
+
+pbc<-pbc[pbc[[8]] != '?/?',]
+pbc.out<-processIMB(pbc)
+pbc.out<-subset(pbc.out,!is.na(pbc.out$or))
+save(pbc.out,file=file.path(process.dir,'PBC.RData'))
+
 ##UC
 uc<-fread(paste0(raw.dir,'uc_build37_45975_20161107.txt'))
 uc.out<-processIBD(uc)
@@ -164,12 +175,35 @@ save(t1d.1,file=file.path(process.dir,'T1D_1.RData'))
 t1d.2<-processT1D(t1d,'beta.2','se.2')
 save(t1d.2,file=file.path(process.dir,'T1D_2.RData'))
 
+## JIA
+jia.dir<-'/scratch/wallace/gwas-summary-stats/jia-2017-unpublished/'
+jia.files<-list.files(path=jia.dir,pattern='*.gz',full.names=TRUE)
 
-## meta
-#t1d$or<-exp(t1d$beta.meta)
-#t1d$Z<-abs(t1d$beta.meta/t1d$se.meta)
-#t1d$p<-pnorm(-abs(t1d$Z))
-#t1d.out<-t1d[,c('rsid','chromosome','position','alleleA','alleleB','or','p'),with=FALSE]
-#setnames(t1d.out,c('id','chr','position','a1','a2','or','p.val'))
-#setcolorder(t1d.out,out.cols)
-#save(t1d.out,file=file.path(process.dir,'T1D.RData'))
+jia<-rbindlist(lapply(jia.files,function(f){
+	message(paste("Processing",f))
+	tmp<-fread(paste('zcat',f),skip=1L)
+	setnames(tmp,c('id','chr','snp.name','cM','position','a1','a2','other.id','ref','alt','af','beta.sys','se.sys','beta.nosys','se.nosys'))
+	tmp[,c('id','chr','position','a1','a2','beta.sys','se.sys','beta.nosys','se.nosys'),with=FALSE]
+}))
+	
+
+processJIA<-function(jia,beta.cname,se.cname){
+	cnames<-c('id','chr','position','a1','a2',beta.cname,se.cname)
+        tmp<-jia[,cnames,with=FALSE]
+        setnames(tmp,c(cnames[1:5],'beta','se'))
+        tmp$or<-exp(tmp$beta)
+        tmp$Z<-abs(tmp$beta/tmp$se)
+        tmp$p<-pnorm(-abs(tmp$Z))
+        tmp.out<-tmp[,c('id','chr','position','a1','a2','or','p'),with=FALSE]
+        setnames(tmp.out,c('id','chr','position','a1','a2','or','p.val'))
+        tmp.out<-flip(tmp.out)
+        formatOut(tmp.out)
+}
+
+jia.sys<-processJIA(jia,'beta.sys','se.sys')
+save(jia.sys,file=file.path(process.dir,'JIA_sys.RData'))
+jia.nosys<-processJIA(jia,'beta.nosys','se.nosys')
+save(jia.nosys,file=file.path(process.dir,'JIA_nosys.RData'))
+	
+## vasculitis
+#oTODO - these have z score so to compute gamma need to multiply through by sigma_S which james has - do this when he is back in.

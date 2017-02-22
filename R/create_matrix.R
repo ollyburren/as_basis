@@ -78,7 +78,7 @@ final<-final[-which(final$id %in% unique(final[which(final$risk.allele != final$
 ## all OR =1 or log(or)=0
 
 ## add the allele frequencies
-load("/home/ob219/scratch/as_basis/tmp/all_or_shared.RData")
+#load("/home/ob219/scratch/as_basis/tmp/all_or_shared.RData")
 load("/home/ob219/scratch/as_basis/1KG_support/all_EUR_support.RData")
 ## get just the gt that we need
 tmp<-unique(final)[,c('chr','position','risk.allele','other.allele'),with=FALSE]
@@ -87,18 +87,23 @@ setkey(tmp,chr,position)
 support<-merge(all.eur,tmp,by.x=c('chr','position'),by.y=c('chr','position'))
 ## next check alleles
 support$risk.allele.freq<-double(length=nrow(support))
-ok.idx<-with(support,which(a1==risk.allele & a2==other.allele))
-support[ok.idx,]$risk.allele.freq<-support[ok.idx,]$a1.f
-flip.idx<-with(support,which(a2==risk.allele & a1==other.allele))
-support[flip.idx,]$risk.allele.freq<-1-support[flip.idx,]$a1.f
+ok.idx<-with(support,which(a2==risk.allele & a1==other.allele))
+support[ok.idx,]$risk.allele.freq<-support[ok.idx,]$a2.f
+flip.idx<-with(support,which(a1==risk.allele & a2==other.allele))
+support[flip.idx,]$risk.allele.freq<-1-support[flip.idx,]$a2.f
 csupport<-support[,c('chr','position','name','risk.allele.freq'),with=FALSE]
 wrong.idx<-setdiff(1:nrow(support),c(ok.idx,flip.idx))
 ## add these back to final
 final.t<-merge(final,csupport,by.x=c('chr','position'),by.y=c('chr','position'))
 
-
-## next we calculate scale factor for each SNP 
+save(final.t,file='/scratch/ob219/as_basis/tmp/all_or_shared_with_af.RData')
+## f is defined as the minor allele frequency
+maj_idx<-which(final.t$risk.allele.freq>0.5)
+final.t$maf<-final.t$risk.allele.freq
+final.t[maj_idx,]$maf<-1-final.t[maj_idx,]$maf
+##split by sample and compute the partial variance 
 ## this should be done on a study by study basis
+by.samp<-split(final.t,final.t$disease)
 
 # a is a1 counts ctl 
 # b is a2 counts ctl
@@ -123,23 +128,40 @@ cd<-function(n1,a,b,theta){
     (n1*b)/(a+(b*theta))
 }
 
-calc.sf<-function(n0,n1,f,theta){
+calc.pv<-function(n0,n1,f,theta){
     a<-ca(n0,f)
     b<-cb(n0,f)
     c<-cc(n1,a,b,theta)
     d<-cd(n1,a,b,theta)
-    recip.sm<-sum(sapply(c(a,b,c,d),function(f) 1/f))
-    return(sqrt(recip.sm))
+    recip.sm<-do.call('cbind',lapply(list(a,b,c,d),function(fi) 1/fi))
+    return(sqrt(rowSums(recip.sm)))
 }
 
 ## todo get a matrix of cases and controls for each of the studies being considered.
 
+ss<-fread("/home/ob219/scratch/as_basis/gwas_stats/sample_counts.csv")
 
-createORMatrix<-function(DT,p.val.thresh=1){
+par.var<-lapply(seq_along(by.samp),function(i){
+	dname<-names(by.samp)[i]
+	message(paste("Processing",dname))
+	n0<-ss[ss$disease==dname,]$cases
+	n1<-ss[ss$disease==dname,]$controls
+	dat<-by.samp[[i]]
+	## bit concerned here about f is the af correct and what allele is it wrt ?
+	## assume should be the minor allele but check the maths.
+	dat$pv<-calc.pv(n0,n1,dat$maf,dat$or)
+	dat
+})
+
+par.cor<-rbindlist(par.var)
+par.cor$p.z<-log(par.cor$or)/par.cor$pv
+
+
+createORMatrix<-function(DT,p.val.thresh=1,var='lor'){
    tmp<-unique(DT[DT$p.val<p.val.thresh,]$id)
    tmp<-DT[which(DT$id %in% tmp),]
    tmp$lor<-log(tmp$or)
-   tmp<-melt(tmp,id.vars=c('id','disease'),measure.vars = 'lor') 
+   tmp<-melt(tmp,id.vars=c('id','disease'),measure.vars = var) 
    ret<-dcast(tmp,disease~id)
    diseases<-ret$disease
    ret<-as.data.frame(ret[,2:ncol(ret),with=FALSE])
@@ -150,7 +172,9 @@ createORMatrix<-function(DT,p.val.thresh=1){
 }
 
 no.p<-createORMatrix(final)
-#save(no.p,file="/home/ob219/scratch/as_basis/tmp/no_p_lor_matrix.RData")
+no.z<-createORMatrix(par.cor,var='p.z')
+save(no.p,file="/home/ob219/scratch/as_basis/tmp/no_p_lor_matrix.RData")
+save(no.z,file="/home/ob219/scratch/as_basis/tmp/no_p_pz_matrix.RData")
 #save(final,file="/home/ob219/scratch/as_basis/tmp/all_or_shared.RData")
 
 
