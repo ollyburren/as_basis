@@ -1,0 +1,204 @@
+---
+title: "Adventures in PCA"
+author: "Olly Burren"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: 
+    fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+data.dir<-'/Users/oliver/DATA/AS_BASIS'
+library(ggplot2)
+```
+
+## PCA
+
+I have used R scripts in R dir to munge data and the convert into a suitable matrix for EDA using PCA based techniques.
+
+This markdown is for exploring whether by using AI + T1D_2 cohort to create a basis we can then project T1D_1 on to this and see whether PC loadings are similar to T1D_2. This done for three scenarios
+
+1. log(OR)
+2. log(OR)/S.E due to allele frequency
+3. log(OR) weighted by the posterior probability (calculated using _Wakefield's_ approximate Bayes factors)
+
+## Preamble
+
+Load in precomputed matrices with certain traits removed (as agreed with CW). Also setup helper functions for plotting etc.
+```{r load_data, echo=FALSE, cache = TRUE, result='hide'}
+#beta - log(or)
+(load(file.path(data.dir,'no_p_lor_matrix.RData')))
+#partial z score log(or)/var_f i.e. variance due to allele freq
+no.p<-no.p[!rownames(no.p) %in% c('SCZ','JIA_sys','JIA_nosys','T2D','IBD'),]
+(load(file.path(data.dir,'no_p_pz_matrix.RData')))
+no.z<-no.z[!rownames(no.z) %in% c('SCZ','JIA_sys','JIA_nosys','T2D','IBD'),]
+(load(file.path(data.dir,'no_p_pp_matrix.RData')))
+no.p<-no.p[!rownames(no.p) %in% c('SCZ','JIA_sys','JIA_nosys','T2D','IBD'),]
+computePCA<-function(DT,rm.cols,scale){
+    ## remove columns we don't want
+    f<-DT[-which(rownames(DT) %in% rm.cols ),]
+    ## We do mean centre as we expect that across all 350k snps that the mean is zero 
+    prcomp(f,center=TRUE,scale=scale)
+}
+
+
+plotAllProjection<-function(proj.load,pca,cf.1,cf.2){
+    tmp<-rbind(proj.load,pca$x)
+    mall<-melt(tmp)
+    names(mall)<-c('disease','pc','projection')
+    # reorder by PC_1
+    reo<-mall[mall$pc=='PC1',]
+    mall$disease<-factor(mall$disease,levels = as.character(reo[order(reo$projection),]$disease))
+    ## add a category so can see the projections we are comparing
+    mall$cat<-'other'
+    mall[mall$disease==cf.1,]$cat<-cf.1
+    mall[mall$disease==cf.2,]$cat<-cf.2
+    ggplot(mall,aes(x=disease,y=projection,fill=cat)) + geom_bar(stat="identity") + 
+    facet_wrap(~pc) + theme_bw() + theme(axis.text.x=element_text(angle = -90, hjust = 0)) 
+}
+
+altPlotAllProjection<-function(proj.load,pca,cf.1,cf.2,spec.comp=FALSE){
+    tmp<-rbind(proj.load,pca$x)
+    mall<-melt(tmp)
+    names(mall)<-c('disease','pc','projection')
+     if(spec.comp){
+        mall<-mall[mall$disease %in% c('control',cf.1,cf.2),]
+    }
+    reo<-mall[mall$pc=='PC1',]
+    mall$disease<-factor(mall$disease,levels = as.character(reo[order(reo$projection),]$disease))
+    ## add a category so can see the projection we are comparing
+    mall$cat<-'other'
+    mall[mall$disease==cf.1,]$cat<-cf.1
+    mall[mall$disease==cf.2,]$cat<-cf.2
+    mall[mall$disease=='control',]$cat<-'control'
+   
+    vexp<-summary(pca)$importance[2,]
+    mall$var.exp<-vexp[mall$pc]
+    
+    mall$label<-sprintf("%s (%.2f)",mall$pc,mall$var.exp)
+    mall$label<-factor(mall$label,levels=unique(mall[order(mall$pc),]$label))
+    cols<-c(cf.1='green',cf.2='blue',"control"='grey','other'='orange')
+    names(cols)[1:2]<-c(cf.1,cf.2)
+    ggplot(mall,aes(x=label,y=projection,group=disease,color=cat)) + geom_point() + geom_path()  + theme_bw() + theme(axis.text.x=element_text(angle = 90, vjust = 0.5)) + scale_color_manual(values=cols)
+}
+
+pc2.plot<-function(pc,proj.pc){
+    act.pc<-pc$x
+    all.pc<-rbind(pc$x,proj.pc)
+    DT<-data.table(all.pc[,1:2])
+    DT$disease<-rownames(all.pc)
+    DT$predicted=FALSE
+    DT[nrow(all.pc),]$predicted<-TRUE
+    ggplot(DT,aes(x=PC1,y=PC2,label=disease,color=predicted)) + geom_point() + geom_text(angle = 45) + theme_bw()
+}
+```
+
+## 1. log(OR)
+
+Compute principal components removing *T1D_1* dataset. Note we don't use any variance scaling as this is what were are trying to leverage. We next project *T1D_1* onto this to obtain principal components and see how these compare to *T1D_2*.
+
+
+
+```{r project_beta, echo=FALSE, results='markup'}
+beta.pca<-computePCA(no.p,c('T1D_meta','T1D_1'),scale=FALSE)
+beta.pca.proj.t1d.1<-predict(beta.pca,no.p['T1D_1',])
+beta.cf<-rbind(beta.pca.proj.t1d.1,beta.pca$x["T1D_2",])
+rownames(beta.cf)<-paste('beta',c('T1D_1','T1D_2'),sep='_')
+beta.cf
+```
+
+```{r beta_projections_bar, echo=TRUE, fig.cap="Barplot comparison of log(OR) principal components",fig.pos='ht'}
+    plotAllProjection(beta.pca.proj.t1d.1,beta.pca,'T1D_1','T1D_2')
+```
+```{r beta_projections_line_all, echo=TRUE, fig.cap="Lineplot comparison of all log(OR) principal components",fig.pos='ht'}
+    altPlotAllProjection(beta.pca.proj.t1d.1,beta.pca,'T1D_1','T1D_2')
+```
+```{r beta_projections_line_spec, echo=TRUE, fig.cap="Lineplot comparison of log(OR) T1D_1,T1D_2 and control principal components",fig.pos='ht'}
+    altPlotAllProjection(beta.pca.proj.t1d.1,beta.pca,'T1D_1','T1D_2',TRUE)
+```
+```{r beta_projections_pc, echo=TRUE, fig.cap="log(OR) PC1 and PC2 for all traits",fig.pos='ht'}
+    pc2.plot(beta.pca,beta.pca.proj.t1d.1)
+```
+
+## 2. log(OR)/S.E of $\beta$ due to allele frequency.
+
+As above but we divide the log(OR) by S.E of $\beta$ due to the allele frequency to get a partial $Z$ score. This takes into account the variance within columns but leaves variance across columns.
+
+```{r project_pz, echo=FALSE,results='markup'}
+pz.pca<-computePCA(no.z,c('T1D_meta','T1D_1'),scale=FALSE)
+pz.pca.proj.t1d.1<-predict(pz.pca,no.z['T1D_1',])
+pz.cf<-rbind(pz.pca.proj.t1d.1,pz.pca$x["T1D_2",],pz.pca$x["control",])
+rownames(pz.cf)<-paste('pz',c('T1D_1','T1D_2','control'),sep='_')
+pz.cf
+```
+
+```{r partial_z_projections_bar, echo=TRUE, fig.cap="Barplot comparison of partial $Z$ principal components",fig.pos='ht'}
+   plotAllProjection(pz.pca.proj.t1d.1,pz.pca,'T1D_1','T1D_2')
+```
+```{r partial_z_projections_line_all, echo=TRUE, fig.cap="Lineplot comparison of all partial $Z$ principal components",fig.pos='ht'}
+    altPlotAllProjection(pz.pca.proj.t1d.1,pz.pca,'T1D_1','T1D_2')
+```
+```{r partial_z_projections_line_spec, echo=TRUE, fig.cap="Lineplot comparison of partial $Z$ T1D_1,T1D_2 and control principal components",fig.pos='ht'}
+    altPlotAllProjection(pz.pca.proj.t1d.1,pz.pca,'T1D_1','T1D_2',TRUE)
+```
+```{r partial_z_projections_pc, echo=TRUE, fig.cap="partial $Z$ PC1 and PC2 for all traits",fig.pos='ht'}
+    pc2.plot(pz.pca,pz.pca.proj.t1d.1)
+```
+
+## 3. log(OR) weighted by posterior probability.
+
+Using HapMap LD map we divide genome into 1cM chunks. For each of these chunks we compute approximate Bayes factors. Given a suitable prior $10^-4$ we can compute posterior probabilities for $P(\text{SNP Causal} | \text{Data})$ where Data is the set of univariate $p$ values. We then use this to weight odds ratios and recompute principal components. 
+
+```{r project_pp, echo=FALSE,results='markup'}
+pp.pca<-computePCA(no.pp,c('T1D_meta','T1D_1'),scale=FALSE)
+pp.pca.proj.t1d.1<-predict(pp.pca,no.pp['T1D_1',])
+pp.cf<-rbind(pp.pca.proj.t1d.1,pp.pca$x["T1D_2",],pp.pca$x["control",])
+rownames(pp.cf)<-paste('pp',c('T1D_1','T1D_2','control'),sep='_')
+pp.cf
+```
+
+```{r post_prob_projections_bar, echo=TRUE, fig.cap="Barplot comparison of posterior probability weighted log(OR) principal components",fig.pos='ht'}
+    plotAllProjection(pp.pca.proj.t1d.1,pp.pca,'T1D_1','T1D_2')
+```
+```{r post_prob_projections_line_all, echo=TRUE, fig.cap="Lineplot comparison of all posterior probability weighted log(OR) principal components",fig.pos='ht'}
+    altPlotAllProjection(pp.pca.proj.t1d.1,pp.pca,'T1D_1','T1D_2')
+```
+```{r post_prob_projections_line_spec, echo=TRUE, fig.cap="Lineplot comparison of posterior probability weighted log(OR) T1D_1,T1D_2 and control principal components",fig.pos='ht'}
+     altPlotAllProjection(pp.pca.proj.t1d.1,pp.pca,'T1D_1','T1D_2',TRUE)
+```
+```{r post_prob_projections_pc, echo=TRUE, fig.cap="posterior probability weighted log(OR) PC1 and PC2 for all traits",fig.pos='ht'}
+    pc2.plot(pp.pca,pp.pca.proj.t1d.1)
+```
+
+## PCA is generated based on log(OR) based on pp but what happens if **T1D_1*_** input is not weighted. Note that the input matrix is a little different as some SNPs availible in pp matrix are not avail in the log(OR) column so slightly different output.
+
+```{r project_pp_no_weight_T1D_1, echo=FALSE,results='markup'}
+#note use no.p here for projection
+no.p.t1d_1<-no.p['T1D_1',]
+#there is not perfect agreement between SNP lists
+no.p.t1d_1<-no.p.t1d_1[which(names(no.p.t1d_1) %in% colnames(no.pp))]
+idx<-which(colnames(no.pp) %in% names(no.p.t1d_1))
+cw.no.pp<-no.pp[,idx]
+cw.pp.pca<-computePCA(cw.no.pp,c('T1D_meta','T1D_1'),scale=FALSE)
+cw.pp.pca.proj.t1d.1<-predict(cw.pp.pca,no.p['T1D_1',])
+cw.pp.cf<-rbind(cw.pp.pca.proj.t1d.1,pp.pca$x["T1D_2",],pp.pca$x["control",])
+rownames(cw.pp.cf)<-paste('cw.pp',c('T1D_1','T1D_2','control'),sep='_')
+cw.pp.cf
+```
+
+Note that `r length(no.p['T1D_1',])` snps available for log(or) and `r length(colnames(no.pp))` snps for posterior prob giving `r length(idx)` in common.
+
+```{r cw_postprob_projections_bar, echo=TRUE, fig.cap="Barplot comparison of posterior probability weighted log(OR) principal components",fig.pos='ht'}
+    plotAllProjection(cw.pp.pca.proj.t1d.1,cw.pp.pca,'T1D_1','T1D_2')
+```
+```{r cw_postprob_projections_line_all, echo=TRUE, fig.cap="Lineplot comparison of all posterior probability weighted log(OR) principal components",fig.pos='ht'}
+    altPlotAllProjection(cw.pp.pca.proj.t1d.1,cw.pp.pca,'T1D_1','T1D_2')
+```
+```{r cw_postprob_projections_line_spec, echo=TRUE, fig.cap="Lineplot comparison of posterior probability weighted log(OR) T1D_1,T1D_2 and control principal components",fig.pos='ht'}
+     altPlotAllProjection(cw.pp.pca.proj.t1d.1,cw.pp.pca,'T1D_1','T1D_2',TRUE)
+```
+```{r cw_postprob_projections_pc, echo=TRUE, fig.cap="posterior probability weighted log(OR) PC1 and PC2 for all traits",fig.pos='ht'}
+    pc2.plot(cw.pp.pca,cw.pp.pca.proj.t1d.1)
+```

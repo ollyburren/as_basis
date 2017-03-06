@@ -1,0 +1,5 @@
+markdown/*.pdf
+markdown/*.html
+markdown/*cache/
+markdown/pca_files/*
+*.swp
