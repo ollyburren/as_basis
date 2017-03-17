@@ -118,39 +118,9 @@ ldBlockGR<-function(file){
 	with(tmp,GRanges(seqnames=Rle(chr),ranges=IRanges(start=as.numeric(start),end=as.numeric(end))))
 }
 
-logsum <- function(x) {
-  my.max <- max(x) ##take out the maximum value in log form)
-  my.res <- my.max + log(sum(exp(x - my.max )))
-  return(my.res)
-}
+## contains code for computing wakefields aBF and thus posterior probabilities
+source("~/gitr/as_basis/R/wakefield.R")
 
-## compute variance shrinkage for quantitative trait study
-Var.data <- function(f, N) {
-  1 / (2 * N * f * (1 - f))
-}
-
-## compute variance shrinkage for case control study
-Var.data.cc <- function(f, N, s) {
-  1 / (2 * N * f * (1 - f) * s * (1 - s))
-}
-
-## compute approx bayes factors and resultant posterior probabilities
-## based on the assumption of one causal variant in a region
-approx.bf.p <- function(p,f, N, s,pi_i) {
-  sd.prior <- 0.2
-  V <- Var.data.cc(f, N, s)
-  z <- qnorm(0.5 * p, lower.tail = FALSE)
-  ## Shrinkage factor: ratio of the prior variance to the total variance
-  r <- sd.prior^2 / (sd.prior^2 + V)
-  ## Approximate BF  # I want ln scale to compare in log natural scale with LR diff
-  lABF = 0.5 * (log(1-r) + (r * z^2))
-  sBF <- logsum(lABF + log(pi_i))
-  exp(lABF + log(pi_i))/(exp(sBF) + 1)
-  #ret <- data.frame(V,z,r,lABF,ppi)
-  #if(!is.null(suffix))
-  #  colnames(ret) <- paste(colnames(ret), suffix, sep=".")
-  #return(ret)
-}
 
 ld.gr<-ldBlockGR('/scratch/ob219/as_basis/support/all.1cM.bed')
 snp.gr<-with(final.t,GRanges(seqnames=Rle(chr),ranges=IRanges(start=position,end=position),id=1:nrow(final.t)))
