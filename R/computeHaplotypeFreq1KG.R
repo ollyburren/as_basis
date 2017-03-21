@@ -2,6 +2,7 @@ library(devtools)
 library(mvtnorm)
 devtools::install_github("mdfortune/simGWAS")
 library(simGWAS)
+library(data.table)
 
 
 
@@ -207,69 +208,143 @@ estLogORfromZ<-function(z,maf,N0,N1){
     as.vector(mt * sqrt(1/N0 + 1/N1))
 }
 
+# posList list with names representing a region and elements positions of SNPs within. 
+# sregions - list of regions in the above to simulate association
+# sigma.dir - location of precomputed covariance matrix that maps to posList 
+# maf.dir - location of precompute MAF that maps to posList
+# N0 - Number of cases
+# N1 - Number of controls
+
+simulateGWAS<-function(posList,sregions,sigma.dir,maf.dir,N0,N1,prior.abf=10^-4,n=1,weightByPP=TRUE){
+    #sregions<-names(chr1.r2s)[fs[[d]]]
+    #nregions<-names(chr1.r2s)[!names(chr1.r2s) %in% sregions]
+    toSim<-names(posList) %in% sregions
+    met<-lapply(seq_along(posList),function(i){
+        r<-names(posList)[i]
+        sigma<-get(load(file.path(sigma.dir,paste0(r,'.RData'))))
+        maf<-get(load(file.path(maf.dir,paste0(r,'.RData'))))
+        ## compute expected Z scores
+        if(toSim[i]){
+            e.z<-simr.z[[r]]
+        }else{
+            e.z<-rep(0,length(maf))
+        }
+        sim.z<-rmvnorm(n=n,mean=e.z,sigma=sigma)
+        ## note that sim.z will now be a matrix
+        lor<-apply(sim.z,1,estLogORfromZ,maf=maf,N0=N0,N1=N1)
+        #lor<-estLogORfromZ(sim.z,maf,N0,N1)
+        #pp<-as.vector(approx.bf.z(sim.z,maf,N,N1/N0,prior.abf))
+        if(weightByPP){
+            pp<-apply(sim.z,1,approx.bf.z,f=maf,N=N0+N1,s=N1/N0,pi_i=prior.abf)
+            lor * pp
+        }else{
+            lor
+        }
+    })
+    ## this should be in the correct order 
+    do.call('rbind',met)
+}
+
+## quicker to precompute expected Z's under association
 simr.z<-lapply(regions2sim,computeEZ,CV.lor=CV.lor,N0=N0,N1=N1)
 names(simr.z)<-regions2sim
 
+## compute the basis
 all.sims<-lapply(names(fs),function(d){
     message(sprintf("Processing disease %s",d))
-    sdir<-file.path(sim.base.dir,d)
-    if(!dir.exists(sdir))
-        dir.create(sdir)
-    sregions<-names(chr1.r2s)[fs[[d]]]
-    nregions<-names(chr1.r2s)[!names(chr1.r2s) %in% sregions]
-    toSim<-names(chr1.r2s) %in% names(chr1.r2s)[fs[[d]]]
-    met<-lapply(seq_along(chr1.r2s),function(i){
-        r<-names(chr1.r2s)[i]
-        load(file.path(out.dir.sigma,paste0(r,'.RData')))
-        load(file.path(out.dir.maf,paste0(r,'.RData')))
-        if(toSim[i]){
-            z<-simr.z[[r]]
-        }else{
-            z<-rep(0,length(maf))
-        }
-        sim.z<-rmvnorm(n=1,mean=z,sigma=sigma)
-        lor<-estLogORfromZ(sim.z,maf,N0,N1)
-        pp<-as.vector(approx.bf.z(sim.z,maf,N,N1/N0,prior.abf))
-        ## this is the metric we want to return
-        lor * pp
-    })
-    ## this should be in the correct order 
-    do.call('c',met)
+    reg2sim<-names(chr1.r2s)[fs[[d]]]
+    simulateGWAS(chr1.r2s,reg2sim,out.dir.sigma,out.dir.maf,N0,N1,n=1)
 })
-
-
-
-library(reshape2)
-library(ggplot2)
-mat<-do.call('rbind',all.sims)
+mat<-do.call('rbind',lapply(all.sims,as.vector))
 mat<-rbind(mat,0)
 rownames(mat)<-c(names(fs),'control')
 pca<-prcomp(mat,scale = FALSE,center = TRUE)
-tmp<-pca$x
-mall<-melt(tmp)
-names(mall)<-c('disease','pc','projection')
-reo<-mall[mall$pc=='PC1',]
-mall$disease<-factor(mall$disease)
-## add a category so can see the projection we are comparing
-mall$cat<-'simulation'
-mall[mall$disease=='control',]$cat<-'control'
+
+
+
+## given a disease compute a set of simulated gwas say 1000 times and we can use these to estimate 
+sim.d<-sample(names(fs),1)
+reg2sim<-names(chr1.r2s)[fs[[sim.d]]]
+to.project<-simulateGWAS(chr1.r2s,reg2sim,out.dir.sigma,out.dir.maf,N0,N1,n=1000,weightByPP = FALSE)
+project.pc<-predict(pca,t(to.project))
+## long and thin
+fdt<-data.table(project.pc)
+melt(fdt,id.vars=colnames(fdt))
+fdt<-melt(fdt,measure.vars=colnames(fdt))
+act<-melt(pca$x[sim.d,],measure.vars=colnames(pca$x))
+act<-melt(pca$x,measure.vars=colnames(pca$x))
+act$actual<-act$Var1 %in% sim.d
+
 vexp<-summary(pca)$importance[2,]
-mall$var.exp<-vexp[mall$pc]
-mall$label<-sprintf("%s (%.2f)",mall$pc,mall$var.exp)
-mall$label<-factor(mall$label,levels=unique(mall[order(mall$pc),]$label))
-cols<-c(simulation='red',other='black')
-#ggplot(mall,aes(x=label,y=projection,group=disease,color=cat)) + geom_point() + geom_path()  + theme_bw() + theme(axis.text.x=element_text(angle = 90, vjust = 0.5)) + scale_color_manual(values=cols)
+fdt$variable<-sprintf("%s (%.2f)",fdt$variable,vexp[fdt$variable])
+act$Var2<-sprintf("%s (%.2f)",act$Var2,vexp[act$Var2])
 
-ggplot(mall,aes(x=label,y=projection,group=disease,color=disease)) + geom_point() + geom_path()  + theme_bw() + theme(axis.text.x=element_text(angle = 90, vjust = 0.5)) + facet_grid(disease~.)
 
-pc2.plot<-function(pc){
-    all.pc<-pc$x
-    DT<-data.table(all.pc[,1:2])
-    DT$disease<-rownames(all.pc)
-    DT$predicted=FALSE
-    DT[nrow(all.pc),]$predicted<-TRUE
-    ggplot(DT,aes(x=PC1,y=PC2,label=disease)) + geom_point() + geom_text(angle = 0,check_overlap=FALSE,nudge_y = 0.05) + theme_bw()
+#act$variable<-rownames(act)
+#ggplot(fdt,aes(x=variable,y=value)) + geom_boxplot() + geom_point(data=act,aes(x=Var2,color=actual),pch=16,size=2) + geom_text(data=act,aes(x=Var2,color=actual,label=Var1),nudge_x = 0.2) + theme_bw() + theme(axis.text.x=element_text(angle = 90, vjust = 0.5))
+
+## computing a p dimensional distance.
+
+nEucledian<-function(simLoad,actLoad){
+    sqrt(sum(((actLoad-simLoad)^2)))
 }
 
-pc2.plot(pca)
+## compute single distance stat for each disease to see if we can tell what is being simulated
+comp<-rbindlist(lapply( rownames(pca$x),function(z){
+    data.table(component=z,distance=apply(project.pc,1,nEucledian,pca$x[z,]))
+}))
 
+ylabel=sprintf("Euc. Dist. of %s simulated data\nfrom actual disease loading",sim.d)
+
+ggplot(comp,aes(x=component,y=distance)) + geom_boxplot() + theme_bw() + ylab("Eucledian Distance from  by PC Loading") + xlab("Disease") + ylab(ylabel)
+
+
+# MahalanobisDistance<-function(A,B){
+#     n1 <- length(A)
+#     n2 <- length(B)
+#     n <- n1 + n2
+#     xdiff<-mean(A)-mean(B)
+#     cA <- cov(A)
+#     cB <- cov(B)
+#     pC <- n1/n*cA + n2/n^cB
+#     sqrt(xdiff * solve(pC) * t(xdiff))
+# }
+# 
+# tmA<-matrix(c( 2, 2, 2, 5, 6, 5, 7, 3, 4, 7, 6, 4, 5, 3, 4, 6, 2, 5, 1, 3),ncol=2,byrow=TRUE)
+# tmB<-matrix(c( 6, 5, 7, 4, 8, 7, 5, 6, 5, 4),ncol=2,byrow=TRUE)
+# 
+# MahalanobisDistance(tmA,tmB)
+
+
+# pc2.plot<-function(pc,...){
+#     all.pc<-pc$x
+#     DT<-data.table(all.pc[,1:2])
+#     DT$disease<-rownames(all.pc)
+#     DT$predicted=FALSE
+#     args <- list(...)
+#     if("proj" %in% names(args)){
+#         pDT<-data.table(args[['proj']][,1:2])
+#         #pDT$disease<-paste0('p',1:nrow(pDT))
+#         pDT$disease<-''
+#         pDT$predicted=TRUE
+#         DT<-rbind(DT,pDT)
+#     }
+#     ggplot(DT,aes(x=PC1,y=PC2,label=disease,colour=predicted)) + geom_point() + geom_text(angle = 0,check_overlap=FALSE,nudge_y = 0.05) + theme_bw()
+# }
+# 
+# computeDist<-function(pc,...){
+#     all.pc<-pc$x
+#     DT<-all.pc[,1:2]
+#     args <- list(...)
+#     if("proj" %in% names(args)){
+#         pDT<-args[['proj']][,1:2]
+#         #pDT$disease<-paste0('p',1:nrow(pDT))
+#         DT<-rbind(DT,pDT)
+#     }
+#     dist(DT)
+# }
+# 
+# pc2.plot(pca,proj=project.pc)
+# 
+# pdist<-computeDist(pca,proj=project.pc)
+# 
