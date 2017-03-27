@@ -69,10 +69,6 @@ getSigma<-function(sm){
     make.positive.definite(LD)
 }
 
-getNullSim<-function(sigma,n=8){
-    rmvnorm(n=n,mean=rep(0,nrow(sigma)),sigma=sigma)
-}
-
 
 ## hap.freq - use getHapFreq to generate haplotype freq
 ## CV.or - vector of effect sizes for causal variant
@@ -183,6 +179,7 @@ N1 <- 2000
 prior.abf<-10^-4
 N <- N1+N0
 n.blocks<-1:length(chr1.r2s)
+## create basis of related disease 
 fs<-selectGroups(n.blocks,n.diseases,n.causal.blocks)
 names(fs)<-paste0('d',1:n.diseases)
 sim.name<-'sim.1'
@@ -215,17 +212,20 @@ estLogORfromZ<-function(z,maf,N0,N1){
 # N0 - Number of cases
 # N1 - Number of controls
 
-simulateGWAS<-function(posList,sregions,sigma.dir,maf.dir,N0,N1,prior.abf=10^-4,n=1,weightByPP=TRUE){
+simulateGWAS<-function(posList,sregions,assoc.sim,sigma.dir,maf.dir,N0,N1,prior.abf=10^-4,n=1,weightByPP=TRUE){
     #sregions<-names(chr1.r2s)[fs[[d]]]
     #nregions<-names(chr1.r2s)[!names(chr1.r2s) %in% sregions]
     toSim<-names(posList) %in% sregions
     met<-lapply(seq_along(posList),function(i){
         r<-names(posList)[i]
-        sigma<-get(load(file.path(sigma.dir,paste0(r,'.RData'))))
-        maf<-get(load(file.path(maf.dir,paste0(r,'.RData'))))
+        ssfile<-file.path(sigma.dir,paste0(r,'.RData'))
+        mafile<-file.path(maf.dir,paste0(r,'.RData'))
+        #message(sprintf("%s,%s,%s",ssfile,mafile,r))
+        sigma<-get(load(ssfile))
+        maf<-get(load(mafile))
         ## compute expected Z scores
         if(toSim[i]){
-            e.z<-simr.z[[r]]
+            e.z<-assoc.sim[[r]]
         }else{
             e.z<-rep(0,length(maf))
         }
@@ -253,7 +253,7 @@ names(simr.z)<-regions2sim
 all.sims<-lapply(names(fs),function(d){
     message(sprintf("Processing disease %s",d))
     reg2sim<-names(chr1.r2s)[fs[[d]]]
-    simulateGWAS(chr1.r2s,reg2sim,out.dir.sigma,out.dir.maf,N0,N1,n=1)
+    simulateGWAS(chr1.r2s,reg2sim,sim.z,out.dir.sigma,out.dir.maf,N0,N1,n=1)
 })
 mat<-do.call('rbind',lapply(all.sims,as.vector))
 mat<-rbind(mat,0)
@@ -297,6 +297,182 @@ comp<-rbindlist(lapply( rownames(pca$x),function(z){
 ylabel=sprintf("Euc. Dist. of %s simulated data\nfrom actual disease loading",sim.d)
 
 ggplot(comp,aes(x=component,y=distance)) + geom_boxplot() + theme_bw() + ylab("Eucledian Distance from  by PC Loading") + xlab("Disease") + ylab(ylabel)
+
+## titrate the # initially keep the number of cases the same
+
+#n.cases<-c(100,200,350,500,800,1000,1500,2000)
+n.cases<-seq(100,2000,100)
+n.sims<-100
+titr<-lapply(n.cases,function(n.cas){
+    message(sprintf("Simulating %d cases",n.cas))
+    to.project<-simulateGWAS(chr1.r2s,reg2sim,out.dir.sigma,out.dir.maf,N0,n.cas,n=n.sims,weightByPP = FALSE)
+    project.pc<-predict(pca,t(to.project))
+    rbindlist(lapply( rownames(pca$x),function(z){
+        data.table(n.cases=n.cas,disease=z,distance=apply(project.pc,1,nEucledian,pca$x[z,]))
+    }))
+})
+
+titr<-rbindlist(titr)
+
+#ggplot(foo,aes(x=factor(n.cases),y=distance)) + geom_boxplot() + theme_bw() + ylab("Eucledian Distance from  by PC Loading") + xlab("Number of Cases") + ylab(ylabel) + facet_grid(component~.)
+sum<-titr[,list(mdist=mean(distance),sd=sd(distance)),by=c('n.cases','disease')]
+sum$me<-(sum$sd/sqrt(n.sims))*1.96
+limits <- aes(ymax = mdist+me,ymin=mdist-me)
+
+ggplot(sum,aes(x=n.cases,y=mdist,group=disease,colour=disease)) + geom_point() + geom_line() + geom_errorbar(limits, width=0.2) + theme_bw()  + ylab(sprintf("Mean Eucledian Distance from simulation(%s x %d)\nto disease  by PC Loading",sim.d, n.sims)) + xlab("Number of Cases")
+
+
+## randomly sample GWAS 
+## compute the expected z scores under the alternative using unimodal effect size
+simr.rnd<-lapply(names(chr1.r2s),computeEZ,CV.lor=CV.lor,N0=N0,N1=N1)
+names(simr.rnd)<-names(chr1.r2s)
+
+## simulate 100 GWAS to start
+n.sample.gwas<-500
+
+## randomly select 50 regions to be causal (n.causal.blocks)
+rand2sim<-sample(names(chr1.r2s),n.causal.blocks)
+rand.gwas.to.project<-lapply(1:n.sample.gwas,function(i){
+    message(sprintf("Processing %d",i))
+    simulateGWAS(chr1.r2s,rand2sim,simr.rnd,out.dir.sigma,out.dir.maf,N0,N1,n=1)
+})
+
+foo<-do.call('cbind',rand.gwas.to.project)
+foo.pc<-predict(pca,t(foo))
+
+foo.euc<-rbindlist(lapply( rownames(pca$x),function(z){
+    data.table(disease=z,distance=apply(foo.pc,1,nEucledian,pca$x[z,]))
+}))
+
+
+ggplot(foo.euc,aes(x=disease,y=distance)) + geom_boxplot() + theme_bw()
+
+## w weights for a given pc and basis (eigenvector)
+
+## principal 
+w<-pca$rotation[,1]
+d1<-mat['d1',]
+d2<-foo[,1]
+e.distance.slow<-function(w,d1,d2){
+    DT<-data.table(w=w,d1=d1,d2=d2)
+    DT[,`:=`(w.sq=w^2),]
+    summ.DT<-DT[,list(t1=sum(w.sq*(d1^2)),t2=sum(w.sq*(d2^2)),t3=-2*sum(w.sq*d1*d2)),]
+    t4<-sum(do.call('c',lapply(1:nrow(DT),function(i){
+        tmpDT<-DT[-i,]
+        oDT<-DT[i,]
+        sum(tmpDT$w * tmpDT$d1 * oDT$w * oDT$d1)
+    })))
+    
+    t5<-sum(do.call('c',lapply(1:nrow(DT),function(i){
+        tmpDT<-DT[-i,]
+        oDT<-DT[i,]
+        sum(tmpDT$w * tmpDT$d2 * oDT$w * oDT$d2)
+    })))
+    
+    t6<--2*sum(do.call('c',lapply(1:nrow(DT),function(i){
+        tmpDT<-DT[-i,]
+        oDT<-DT[i,]
+        sum(tmpDT$w * tmpDT$d2 * oDT$w * oDT$d1)
+    })))
+    sum(summ.DT$t1,summ.DT$t2,summ.DT$t3,t4,t5,t6)
+}
+
+e.distance.fast1<-function(w,d1,d2){
+    DT<-data.table(w=w,d1=d1,d2=d2)
+    mat<-matrix(0,nrow=length(w),ncol=6)
+    mat[,1]<-DT$w^2 * DT$d1^2
+    mat[,2]<-DT$w^2 * DT$d2^2
+    mat[,3]<-DT$w^2 *  DT$d1 *  DT$d2
+    for(i in 1:length(w)){
+        tmpDT<-DT[-i,]
+        oDT<-DT[i,]
+        mat[i,4]<-sum(tmpDT$w * tmpDT$d1 * oDT$w * oDT$d1)
+        mat[i,5]<-sum(tmpDT$w * tmpDT$d2 * oDT$w * oDT$d2)
+        mat[i,6]<-sum(tmpDT$w * tmpDT$d2 * oDT$w * oDT$d1)
+    }
+    sum(colSums(mat) * c(1,1,-2,1,1,-2))
+}
+
+e.distance.fast2<-function(w,d1,d2){
+    dat<-do.call('cbind',list(w,d1,d2))
+    mat<-matrix(0,nrow=length(w),ncol=6)
+    mat[,1]<-dat[,1]^2 * dat[,2]^2
+    mat[,2]<-dat[,1]^2 * dat[,3]^2
+    mat[,3]<-dat[,1]^2 * dat[,2] * dat[,3]
+    for(i in 1:length(w)){
+        ## get line we are interested in
+        odat<-dat[i,]
+        dat[i,]<-0
+        #mat[i,4]<-sum(dat[,1] * dat[,2] * odat[1] * odat[2])
+        dat[,1]
+        mat[i,5]<-sum(dat[,1] * dat[,3] * odat[1] * odat[3])
+        mat[i,6]<-sum(dat[,1] * dat[,3] * odat[1] * odat[2])
+        dat[i,]<-odat
+    }
+    sum(colSums(mat) * c(1,1,-2,1,1,-2))
+}
+
+library(Rcpp)
+
+cppFunction('NumericVector loopy(NumericMatrix x){
+    int nrow = x.nrow();
+    NumericVector out(3);
+    for (int i = 0; i < nrow; i++) {
+        for (int j = 0; j < nrow; j++) {
+            if(i==j) continue;
+            out[0] += x(j,0) * x(j,1) * x(i,0) * x(i,1);
+            out[1] += x(j,0) * x(j,2) * x(i,0) * x(i,2);
+            out[2] += x(j,0) * x(j,2) * x(i,0) * x(i,1);
+        }
+    }
+    return(out);
+}')
+
+e.distance.fast3<-function(w,d1,d2){
+    dat<-do.call('cbind',list(w,d1,d2))
+    mat<-matrix(0,nrow=length(w),ncol=3)
+    mat[,1]<-dat[,1]^2 * dat[,2]^2
+    mat[,2]<-dat[,1]^2 * dat[,3]^2
+    mat[,3]<-dat[,1]^2 * dat[,2] * dat[,3]
+    sum(c(colSums(mat),loopy(dat)) * c(1,1,-2,1,1,-2))
+}
+
+## is this the quickest way to do things ?
+
+
+n<-1000
+library(microbenchmark)
+microbenchmark(
+    e.distance.fast1(w[1:n],d1[1:n],d2[1:n]),
+    e.distance.fast2(w[1:n],d1[1:n],d2[1:n]),
+    e.distance.fast3(w[1:n],d1[1:n],d2[1:n])
+)
+
+## can we speed up using cpp ?
+
+
+
+foo<-loopy(dat)
+
+loopy()
+comp.dist<-sum(summ.DT$t1,summ.DT$t2,summ.DT$t3,t4,t5,t6)
+## actual distance - doesn't appear to work
+## what about simple calculation
+(sum(DT$w*DT$d1) - sum(DT$w*DT$d2))^2
+
+
+
+
+
+
+t4<-function(DT,i,w,d1) {
+    print(sprintf("%f,%f",w,d1))
+    ## subset of DT not indexed
+    tDT<-DT[-i,]
+    2*sum(exp(log(tDT$w) + log(tDT$d1) + log(d1) + log(w)))
+}
+## theoretical distance calculations (for maths see Overleaf )
+
 
 
 # MahalanobisDistance<-function(A,B){
