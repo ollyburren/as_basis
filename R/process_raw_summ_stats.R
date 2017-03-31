@@ -137,43 +137,70 @@ setnames(psc.out,c('chr','id','position','risk.allele','other.allele','or','p.va
 setcolorder(psc.out,out.cols)
 save(psc.out,file=file.path(process.dir,'PSC.RData'))
 
-##T1D
-t1d.dir<-'/scratch/wallace/gwas-summary-stats/T1DGC+WTCCC-1KG-imputed/'
-t1d.files<-list.files(path=t1d.dir,patter='snptest-meta.*',full.names=TRUE)
+##T1D - Compared to Nick's this is wrong all OR are halved - DONT USE
+#t1d.dir<-'/scratch/wallace/gwas-summary-stats/T1DGC+WTCCC-1KG-imputed/'
+#t1d.files<-list.files(path=t1d.dir,patter='snptest-meta.*',full.names=TRUE)
 
 
-t1d<-rbindlist(lapply(seq_along(t1d.files),function(i){
-	tf<-t1d.files[i]
-	chr<-sub(".*chr([^\\.]+)\\.gz","\\1",basename(tf))
-	message(chr)
-	out<-fread(paste('zcat',tf))
-	out$chr<-chr
-	out
-}))
-t1d$chromosome<-t1d$chr
-t1d$chr<-NULL
+#t1d<-rbindlist(lapply(seq_along(t1d.files),function(i){
+#	tf<-t1d.files[i]
+#	chr<-sub(".*chr([^\\.]+)\\.gz","\\1",basename(tf))
+#	message(chr)
+#	out<-fread(paste('zcat',tf))
+#	out$chr<-chr
+#	out
+#}))
+#t1d$chromosome<-t1d$chr
+#t1d$chr<-NULL
 
 ## function to process T1D and get different cohorts based on colnames 
 
-processT1D<-function(t1d,beta.cname,se.cname){
-	cnames<-c('rsid','chromosome','position','alleleA','alleleB',beta.cname,se.cname)
+#processT1D<-function(t1d,beta.cname,se.cname){
+#	cnames<-c('rsid','chromosome','position','alleleA','alleleB',beta.cname,se.cname)
+#	tmp<-t1d[,cnames,with=FALSE]
+#	setnames(tmp,c(cnames[1:5],'beta','se'))
+#	tmp$or<-exp(tmp$beta)
+#	tmp$Z<-abs(tmp$beta/tmp$se)
+#	tmp$p<-pnorm(-abs(tmp$Z))
+#	tmp.out<-tmp[,c('rsid','chromosome','position','alleleA','alleleB','or','p'),with=FALSE]
+#	setnames(tmp.out,c('id','chr','position','a1','a2','or','p.val'))
+#	tmp.out<-flip(tmp.out)
+#	formatOut(tmp.out)
+#}
+#
+#t1d.meta<-processT1D(t1d,'beta.meta','se.meta')
+#save(t1d.meta,file=file.path(process.dir,'T1D_meta.RData'))
+#t1d.1<-processT1D(t1d,'beta.1','se.1')
+#save(t1d.1,file=file.path(process.dir,'T1D_1.RData'))
+#t1d.2<-processT1D(t1d,'beta.2','se.2')
+#save(t1d.2,file=file.path(process.dir,'T1D_2.RData'))
+
+##T1D these are derived from Nick Coopers 1KG Imputed GWAS
+t1d.file<-'/scratch/ob219/ncooper_bioarxiv_2017/raw/meta_all.txt'
+t1d.out<-fread(t1d.file)
+## filter as only want variants that are in all basis
+setkeyv(t1d.out,c('chromosome','position'))
+setnames(t1d.out,'id','tid')
+#tmp<-t1d.out[asthma.out] - this doesn't work not sure why
+tmp<-merge(t1d.out,asthma.out,by.x=c('chromosome','position'),by.y=c('chr','position'))[,names(t1d.out),with=FALSE]
+
+processT1D<-function(t1d,or.cname,se.cname,p.cname){
+	cnames<-c('rsid','chromosome','position','a0','a1',or.cname,se.cname,p.cname)
 	tmp<-t1d[,cnames,with=FALSE]
-	setnames(tmp,c(cnames[1:5],'beta','se'))
-	tmp$or<-exp(tmp$beta)
-	tmp$Z<-abs(tmp$beta/tmp$se)
-	tmp$p<-pnorm(-abs(tmp$Z))
-	tmp.out<-tmp[,c('rsid','chromosome','position','alleleA','alleleB','or','p'),with=FALSE]
+	setnames(tmp,c(cnames[1:5],'or','se','p.val'))
+	#tmp$p.val<-2*pnorm(abs(log(tmp$or)/tmp$se),lower.tail=FALSE)
+	tmp.out<-tmp[,c('rsid','chromosome','position','a0','a1','or','p.val'),with=FALSE]
 	setnames(tmp.out,c('id','chr','position','a1','a2','or','p.val'))
 	tmp.out<-flip(tmp.out)
 	formatOut(tmp.out)
 }
 
-t1d.meta<-processT1D(t1d,'beta.meta','se.meta')
-save(t1d.meta,file=file.path(process.dir,'T1D_meta.RData'))
-t1d.1<-processT1D(t1d,'beta.1','se.1')
-save(t1d.1,file=file.path(process.dir,'T1D_1.RData'))
-t1d.2<-processT1D(t1d,'beta.2','se.2')
-save(t1d.2,file=file.path(process.dir,'T1D_2.RData'))
+aff.t1d<-processT1D(tmp,'aff.OR','aff.se','aff.pvalue')
+save(aff.t1d,file=file.path(process.dir,'aff.t1d.RData'))
+ill.t1d<-processT1D(tmp,'ill.OR','ill.se','ill.pvalue')
+save(ill.t1d,file=file.path(process.dir,'ill.t1d.RData'))
+meta.t1d<-processT1D(tmp,'OR.meta','se.meta','p.meta')
+save(meta.t1d,file=file.path(process.dir,'meta.t1d.RData'))
 
 ## JIA
 jia.dir<-'/scratch/wallace/gwas-summary-stats/jia-2017-unpublished/'
@@ -205,5 +232,57 @@ save(jia.sys,file=file.path(process.dir,'JIA_sys.RData'))
 jia.nosys<-processJIA(jia,'beta.nosys','se.nosys')
 save(jia.nosys,file=file.path(process.dir,'JIA_nosys.RData'))
 	
-## vasculitis
-#oTODO - these have z score so to compute gamma need to multiply through by sigma_S which james has - do this when he is back in.
+## Asthma 
+asthma.dir<-'/scratch/wallace/gwas-summary-stats/asthma/'
+a.file<-file.path(asthma.dir,'gabriel.csv.gz')
+as.DT<-fread(sprintf("zcat %s",a.file))
+as.DT<-as.DT[,c('Chr','rs','position','Allele_1','Allele_2','OR_ran','ORl_ran','ORu_ran','P_ran'),with=FALSE]
+# cannot do anything where we don't have the odds ratio
+as.DT<-as.DT[!is.na(as.DT$OR_ran),]
+## double check things
+#as.DT[,`:=`(uSE=abs(log(ORu_ran)-log(OR_ran))/1.96,lSE=abs(log(ORl_ran)-log(OR_ran))/1.96),]
+#as.DT$uCalcP<-with(as.DT,2*pnorm(abs(log(OR_ran)/uSE),lower.tail=FALSE))
+#as.DT$lCalcP<-with(as.DT,2*pnorm(abs(log(OR_ran)/lSE),lower.tail=FALSE))
+#cor(as.DT$uCalcP,as.DT$P_ran)
+#cor(as.DT$lCalcP,as.DT$P_ran)
+## remap to build 37 -- what is best way liftover or using an annotation library ?
+library("SNPlocs.Hsapiens.dbSNP144.GRCh37")
+snps<-SNPlocs.Hsapiens.dbSNP144.GRCh37
+lu<-snpsById(snps,as.DT$rs,ifnotfound='drop')
+lu<-data.table(as.data.frame(lu))
+setkey(lu,'RefSNP_id')
+setkey(as.DT,'rs')
+as.DT<-as.DT[lu]
+as.DT<-as.DT[,c('rs','seqnames','pos','Allele_1','Allele_2','OR_ran','P_ran'),with=FALSE]
+setnames(as.DT,c('id','chr','position','a1','a2','or','p.val'))
+as.DT$chr<-sub("^ch","",as.DT$chr)
+as.DT<-flip(as.DT)
+asthma.out<-formatOut(as.DT)
+save(asthma.out,file=file.path(process.dir,'asthma.RData'))
+
+## blood traits - these come from Astle et al. but they have 30M variants we only require a few of these.
+blood.data.dir<-'/scratch/wallace/gwas-summary-stats/blood/ftp.sanger.ac.uk/pub/project/humgen/summary_statistics/human/2016-12-12/ukbiobank'
+bfiles<-c('eo_build37_172275_20161212.tsv.gz','lymph_build37_171643_20161212.tsv.gz','myeloid_wbc_build37_169219_20161212.tsv.gz','wbc_build37_172435_20161212.tsv.gz')
+## our basis can only use SNPs in common therefore filter datasets (we can use asthma above)
+asthma.out$chr<-as.integer(asthma.out$chr)
+setkeyv(asthma.out,c('chr','position'))
+all.blood<-lapply(bfiles,function(f){
+	message(sprintf("Processing %s",f))
+	tmp<-fread(sprintf("zcat %s",file.path(blood.data.dir,f)))	
+	setkeyv(tmp,c('CHR','BP'))
+	tmp<-tmp[asthma.out]
+	tmp<-tmp[,names(tmp),with=FALSE]
+	tmp<-tmp[,c('ID','CHR','BP','REF','ALT','EFFECT','P'),with=FALSE]
+	tmp$EFFECT<-exp(tmp$EFFECT)
+	setnames(tmp,c('id','chr','position','a1','a2','or','p.val'))
+	tmp<-flip(tmp)
+	tmp<-formatOut(tmp)
+})
+names(all.blood)<-c('eosinophil','lymphocyte','myeloid','wbc')
+for(i in seq_along(all.blood)){
+	t<-names(all.blood)[i]
+	varname<-paste(t,'out',sep='.')
+	ofile<-file.path(process.dir,paste(t,'RData',sep='.'))
+	assign(varname,all.blood[[i]])
+	save(list=varname,file=ofile)
+}	

@@ -353,68 +353,68 @@ ggplot(foo.euc,aes(x=disease,y=distance)) + geom_boxplot() + theme_bw()
 w<-pca$rotation[,1]
 d1<-mat['d1',]
 d2<-foo[,1]
-e.distance.slow<-function(w,d1,d2){
-    DT<-data.table(w=w,d1=d1,d2=d2)
-    DT[,`:=`(w.sq=w^2),]
-    summ.DT<-DT[,list(t1=sum(w.sq*(d1^2)),t2=sum(w.sq*(d2^2)),t3=-2*sum(w.sq*d1*d2)),]
-    t4<-sum(do.call('c',lapply(1:nrow(DT),function(i){
-        tmpDT<-DT[-i,]
-        oDT<-DT[i,]
-        sum(tmpDT$w * tmpDT$d1 * oDT$w * oDT$d1)
-    })))
-    
-    t5<-sum(do.call('c',lapply(1:nrow(DT),function(i){
-        tmpDT<-DT[-i,]
-        oDT<-DT[i,]
-        sum(tmpDT$w * tmpDT$d2 * oDT$w * oDT$d2)
-    })))
-    
-    t6<--2*sum(do.call('c',lapply(1:nrow(DT),function(i){
-        tmpDT<-DT[-i,]
-        oDT<-DT[i,]
-        sum(tmpDT$w * tmpDT$d2 * oDT$w * oDT$d1)
-    })))
-    sum(summ.DT$t1,summ.DT$t2,summ.DT$t3,t4,t5,t6)
-}
-
-e.distance.fast1<-function(w,d1,d2){
-    DT<-data.table(w=w,d1=d1,d2=d2)
-    mat<-matrix(0,nrow=length(w),ncol=6)
-    mat[,1]<-DT$w^2 * DT$d1^2
-    mat[,2]<-DT$w^2 * DT$d2^2
-    mat[,3]<-DT$w^2 *  DT$d1 *  DT$d2
-    for(i in 1:length(w)){
-        tmpDT<-DT[-i,]
-        oDT<-DT[i,]
-        mat[i,4]<-sum(tmpDT$w * tmpDT$d1 * oDT$w * oDT$d1)
-        mat[i,5]<-sum(tmpDT$w * tmpDT$d2 * oDT$w * oDT$d2)
-        mat[i,6]<-sum(tmpDT$w * tmpDT$d2 * oDT$w * oDT$d1)
-    }
-    sum(colSums(mat) * c(1,1,-2,1,1,-2))
-}
-
-e.distance.fast2<-function(w,d1,d2){
-    dat<-do.call('cbind',list(w,d1,d2))
-    mat<-matrix(0,nrow=length(w),ncol=6)
-    mat[,1]<-dat[,1]^2 * dat[,2]^2
-    mat[,2]<-dat[,1]^2 * dat[,3]^2
-    mat[,3]<-dat[,1]^2 * dat[,2] * dat[,3]
-    for(i in 1:length(w)){
-        ## get line we are interested in
-        odat<-dat[i,]
-        dat[i,]<-0
-        #mat[i,4]<-sum(dat[,1] * dat[,2] * odat[1] * odat[2])
-        dat[,1]
-        mat[i,5]<-sum(dat[,1] * dat[,3] * odat[1] * odat[3])
-        mat[i,6]<-sum(dat[,1] * dat[,3] * odat[1] * odat[2])
-        dat[i,]<-odat
-    }
-    sum(colSums(mat) * c(1,1,-2,1,1,-2))
-}
+# e.distance.slow<-function(w,d1,d2){
+#     DT<-data.table(w=w,d1=d1,d2=d2)
+#     DT[,`:=`(w.sq=w^2),]
+#     summ.DT<-DT[,list(t1=sum(w.sq*(d1^2)),t2=sum(w.sq*(d2^2)),t3=-2*sum(w.sq*d1*d2)),]
+#     t4<-sum(do.call('c',lapply(1:nrow(DT),function(i){
+#         tmpDT<-DT[-i,]
+#         oDT<-DT[i,]
+#         sum(tmpDT$w * tmpDT$d1 * oDT$w * oDT$d1)
+#     })))
+#     
+#     t5<-sum(do.call('c',lapply(1:nrow(DT),function(i){
+#         tmpDT<-DT[-i,]
+#         oDT<-DT[i,]
+#         sum(tmpDT$w * tmpDT$d2 * oDT$w * oDT$d2)
+#     })))
+#     
+#     t6<--2*sum(do.call('c',lapply(1:nrow(DT),function(i){
+#         tmpDT<-DT[-i,]
+#         oDT<-DT[i,]
+#         sum(tmpDT$w * tmpDT$d2 * oDT$w * oDT$d1)
+#     })))
+#     sum(summ.DT$t1,summ.DT$t2,summ.DT$t3,t4,t5,t6)
+# }
+# 
+# e.distance.fast1<-function(w,d1,d2){
+#     DT<-data.table(w=w,d1=d1,d2=d2)
+#     mat<-matrix(0,nrow=length(w),ncol=6)
+#     mat[,1]<-DT$w^2 * DT$d1^2
+#     mat[,2]<-DT$w^2 * DT$d2^2
+#     mat[,3]<-DT$w^2 *  DT$d1 *  DT$d2
+#     for(i in 1:length(w)){
+#         tmpDT<-DT[-i,]
+#         oDT<-DT[i,]
+#         mat[i,4]<-sum(tmpDT$w * tmpDT$d1 * oDT$w * oDT$d1)
+#         mat[i,5]<-sum(tmpDT$w * tmpDT$d2 * oDT$w * oDT$d2)
+#         mat[i,6]<-sum(tmpDT$w * tmpDT$d2 * oDT$w * oDT$d1)
+#     }
+#     sum(colSums(mat) * c(1,1,-2,1,1,-2))
+# }
+# 
+# e.distance.fast2<-function(w,d1,d2){
+#     dat<-do.call('cbind',list(w,d1,d2))
+#     mat<-matrix(0,nrow=length(w),ncol=6)
+#     mat[,1]<-dat[,1]^2 * dat[,2]^2
+#     mat[,2]<-dat[,1]^2 * dat[,3]^2
+#     mat[,3]<-dat[,1]^2 * dat[,2] * dat[,3]
+#     for(i in 1:length(w)){
+#         ## get line we are interested in
+#         odat<-dat[i,]
+#         dat[i,]<-0
+#         #mat[i,4]<-sum(dat[,1] * dat[,2] * odat[1] * odat[2])
+#         dat[,1]
+#         mat[i,5]<-sum(dat[,1] * dat[,3] * odat[1] * odat[3])
+#         mat[i,6]<-sum(dat[,1] * dat[,3] * odat[1] * odat[2])
+#         dat[i,]<-odat
+#     }
+#     sum(colSums(mat) * c(1,1,-2,1,1,-2))
+# }
 
 library(Rcpp)
 
-cppFunction('NumericVector loopy(NumericMatrix x){
+cppFunction('NumericVector computeTerms(NumericMatrix x){
     int nrow = x.nrow();
     NumericVector out(3);
     for (int i = 0; i < nrow; i++) {
@@ -434,43 +434,28 @@ e.distance.fast3<-function(w,d1,d2){
     mat[,1]<-dat[,1]^2 * dat[,2]^2
     mat[,2]<-dat[,1]^2 * dat[,3]^2
     mat[,3]<-dat[,1]^2 * dat[,2] * dat[,3]
-    sum(c(colSums(mat),loopy(dat)) * c(1,1,-2,1,1,-2))
+    sum(c(colSums(mat),computeTerms(dat)) * c(1,1,-2,1,1,-2))
 }
 
 ## is this the quickest way to do things ?
 
 
-n<-1000
-library(microbenchmark)
-microbenchmark(
-    e.distance.fast1(w[1:n],d1[1:n],d2[1:n]),
-    e.distance.fast2(w[1:n],d1[1:n],d2[1:n]),
-    e.distance.fast3(w[1:n],d1[1:n],d2[1:n])
-)
+# n<-1000
+# library(microbenchmark)
+# microbenchmark(
+#     e.distance.fast1(w[1:n],d1[1:n],d2[1:n]),
+#     e.distance.fast2(w[1:n],d1[1:n],d2[1:n]),
+#     e.distance.fast3(w[1:n],d1[1:n],d2[1:n])
+# )
 
-## can we speed up using cpp ?
-
-
-
-foo<-loopy(dat)
-
-loopy()
-comp.dist<-sum(summ.DT$t1,summ.DT$t2,summ.DT$t3,t4,t5,t6)
-## actual distance - doesn't appear to work
-## what about simple calculation
+## these should be equivalent
 (sum(DT$w*DT$d1) - sum(DT$w*DT$d2))^2
+e.distance.fast3(DT$w,DT$d1,DT$d2)
+## now need to do it across all pc for a given disease
+sqrt(sum(apply(pca$rotation,2,e.distance.fast3,d1=d1,d2=d2)))
 
 
 
-
-
-
-t4<-function(DT,i,w,d1) {
-    print(sprintf("%f,%f",w,d1))
-    ## subset of DT not indexed
-    tDT<-DT[-i,]
-    2*sum(exp(log(tDT$w) + log(tDT$d1) + log(d1) + log(w)))
-}
 ## theoretical distance calculations (for maths see Overleaf )
 
 
