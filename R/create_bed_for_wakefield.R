@@ -178,7 +178,7 @@ createORMatrix<-function(DT,p.val.thresh=1,var='lor'){
 }
 
 no.pp<-createORMatrix(final.t,var='por')
-save(no.pp,file="/home/ob219/scratch/as_basis/tmp/no_p_pp_matrix.RData")
+save(no.pp,file="/home/ob219/scratch/as_basis/tmp/no_p_pp_matrix2.RData")
 #save(final,file="/home/ob219/scratch/as_basis/tmp/all_or_shared.RData")
 
 

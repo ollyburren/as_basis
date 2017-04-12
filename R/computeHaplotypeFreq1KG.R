@@ -253,7 +253,7 @@ names(simr.z)<-regions2sim
 all.sims<-lapply(names(fs),function(d){
     message(sprintf("Processing disease %s",d))
     reg2sim<-names(chr1.r2s)[fs[[d]]]
-    simulateGWAS(chr1.r2s,reg2sim,sim.z,out.dir.sigma,out.dir.maf,N0,N1,n=1)
+    simulateGWAS(chr1.r2s,reg2sim,simr.z,out.dir.sigma,out.dir.maf,N0,N1,n=1)
 })
 mat<-do.call('rbind',lapply(all.sims,as.vector))
 mat<-rbind(mat,0)
@@ -265,7 +265,7 @@ pca<-prcomp(mat,scale = FALSE,center = TRUE)
 ## given a disease compute a set of simulated gwas say 1000 times and we can use these to estimate 
 sim.d<-sample(names(fs),1)
 reg2sim<-names(chr1.r2s)[fs[[sim.d]]]
-to.project<-simulateGWAS(chr1.r2s,reg2sim,out.dir.sigma,out.dir.maf,N0,N1,n=1000,weightByPP = FALSE)
+to.project<-simulateGWAS(chr1.r2s,reg2sim,simr.z,out.dir.sigma,out.dir.maf,N0,N1,n=1000,weightByPP = FALSE)
 project.pc<-predict(pca,t(to.project))
 ## long and thin
 fdt<-data.table(project.pc)
@@ -305,7 +305,7 @@ n.cases<-seq(100,2000,100)
 n.sims<-100
 titr<-lapply(n.cases,function(n.cas){
     message(sprintf("Simulating %d cases",n.cas))
-    to.project<-simulateGWAS(chr1.r2s,reg2sim,out.dir.sigma,out.dir.maf,N0,n.cas,n=n.sims,weightByPP = FALSE)
+    to.project<-simulateGWAS(chr1.r2s,reg2sim,simr.z,out.dir.sigma,out.dir.maf,N0,n.cas,n=n.sims,weightByPP = FALSE)
     project.pc<-predict(pca,t(to.project))
     rbindlist(lapply( rownames(pca$x),function(z){
         data.table(n.cases=n.cas,disease=z,distance=apply(project.pc,1,nEucledian,pca$x[z,]))

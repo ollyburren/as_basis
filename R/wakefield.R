@@ -4,6 +4,12 @@ logsum <- function(x) {
     return(my.res)
 }
 
+logdiff <- function(x,y) {
+    my.max <- max(x,y)
+    my.res <- my.max + log(exp(x - my.max ) - exp(y-my.max))
+    return(my.res)
+}
+
 ## compute variance shrinkage for quantitative trait study
 Var.data <- function(f, N) {
     1 / (2 * N * f * (1 - f))
@@ -39,10 +45,9 @@ approx.bf.z <- function(z,f, N, s,pi_i) {
     r <- sd.prior^2 / (sd.prior^2 + V)
     ## Approximate BF  # I want ln scale to compare in log natural scale with LR diff
     lABF = 0.5 * (log(1-r) + (r * z^2))
-    sBF <- logsum(lABF + log(pi_i))
-    exp(lABF + log(pi_i))/(exp(sBF) + 1)
-    #ret <- data.frame(V,z,r,lABF,ppi)
-    #if(!is.null(suffix))
-    #  colnames(ret) <- paste(colnames(ret), suffix, sep=".")
-    #return(ret)
+    ## tABF - to add one we create another element at the end of zero for which pi_i is 1
+    tABF <- c(lABF,0)
+    vpi_i<-c(rep(pi_i,length(lABF)),1)
+    sBF <- logsum(tABF + log(vpi_i))
+    exp(lABF+log(pi_i)-sBF)
 }
