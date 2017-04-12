@@ -181,6 +181,11 @@ t1d.out<-fread(t1d.file)
 ## filter as only want variants that are in all basis
 setkeyv(t1d.out,c('chromosome','position'))
 setnames(t1d.out,'id','tid')
+t1d.out$chromosome<-as.numeric(t1d.out$chromosome)
+## we use asthma to filter only to variants found in other studies
+if(!exists("asthma.out"))
+	load(file.path(process.dir,'asthma.RData'))
+asthma.out$chr<-as.numeric(asthma.out$chr)
 #tmp<-t1d.out[asthma.out] - this doesn't work not sure why
 tmp<-merge(t1d.out,asthma.out,by.x=c('chromosome','position'),by.y=c('chr','position'))[,names(t1d.out),with=FALSE]
 
@@ -189,7 +194,7 @@ processT1D<-function(t1d,or.cname,se.cname,p.cname){
 	tmp<-t1d[,cnames,with=FALSE]
 	setnames(tmp,c(cnames[1:5],'or','se','p.val'))
 	#tmp$p.val<-2*pnorm(abs(log(tmp$or)/tmp$se),lower.tail=FALSE)
-	tmp.out<-tmp[,c('rsid','chromosome','position','a0','a1','or','p.val'),with=FALSE]
+	tmp.out<-tmp[!is.na(tmp$p.val),c('rsid','chromosome','position','a0','a1','or','p.val'),with=FALSE]
 	setnames(tmp.out,c('id','chr','position','a1','a2','or','p.val'))
 	tmp.out<-flip(tmp.out)
 	formatOut(tmp.out)
@@ -272,7 +277,7 @@ all.blood<-lapply(bfiles,function(f){
 	setkeyv(tmp,c('CHR','BP'))
 	tmp<-tmp[asthma.out]
 	tmp<-tmp[,names(tmp),with=FALSE]
-	tmp<-tmp[,c('ID','CHR','BP','REF','ALT','EFFECT','P'),with=FALSE]
+	tmp<-tmp[!is.na(tmp$P),c('ID','CHR','BP','REF','ALT','EFFECT','P'),with=FALSE]
 	tmp$EFFECT<-exp(tmp$EFFECT)
 	setnames(tmp,c('id','chr','position','a1','a2','or','p.val'))
 	tmp<-flip(tmp)

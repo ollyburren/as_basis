@@ -1,4 +1,5 @@
 library(data.table)
+library(GenomicRanges)
 process.dir<-"/scratch/ob219/as_basis/gwas_stats/processed/"
 
 if(!file.exists("/scratch/ob219/as_basis/tmp/all_or_shared_with_af.RData")){
@@ -119,7 +120,7 @@ ldBlockGR<-function(file){
 }
 
 ## contains code for computing wakefields aBF and thus posterior probabilities
-source("~/gitr/as_basis/R/wakefield.R")
+source("~/git/as_basis/R/wakefield.R")
 
 
 ld.gr<-ldBlockGR('/scratch/ob219/as_basis/support/all.1cM.bed')
@@ -131,15 +132,15 @@ final.t[ol[,1],]$ld.block<-ol[,2]
 
 by.disease<-split(final.t,final.t$disease)
 
-add.pp<-function(DT,pi_i=1e-4,total,prop){
-	pp<-with(DT,approx.bf.p(p.val,maf,total,prop,pi_i))
+add.pp<-function(DT,pi_i=1e-4,total,prop,type){
+	pp<-with(DT,approx.bf.p(p.val,maf,total,prop,pi_i,type))
 	DT$pp<-pp
 	return(DT)
 }
 
+maj_idx<-which(final.t$risk.allele.freq>0.5)
 final.t$maf<-final.t$risk.allele.freq
 final.t[maj_idx,]$maf<-1-final.t[maj_idx,]$maf
-
 ## for each disease 
 all.pp<-lapply(names(by.disease),function(n){
 	message(paste("Processing",n))
@@ -148,9 +149,12 @@ all.pp<-lapply(names(by.disease),function(n){
 	controls<-ss[ss.idx,]$controls
 	total<-cases+controls
 	prop.case<-signif(cases/total,digits=3)
+	t<-'CC'
+	if(prop.case==1)
+	  t<-'QUANT'
 	tmp<-by.disease[[n]]
 	by.ld<-split(tmp,tmp$ld.block)
-	pp<-lapply(by.ld,add.pp,total=total,prop=prop.case)
+	pp<-lapply(by.ld,add.pp,total=total,prop=prop.case,type=t)
 	rbindlist(pp)
 })
 
@@ -159,7 +163,6 @@ final.t$por<-log(final.t$or) * final.t$pp
 
 
 ## f is defined as the minor allele frequency
-maj_idx<-which(final.t$risk.allele.freq>0.5)
 ##split by sample and compute the partial variance 
 ## this should be done on a study by study basis
 
