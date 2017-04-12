@@ -22,9 +22,14 @@ Var.data.cc <- function(f, N, s) {
 
 ## compute approx bayes factors and resultant posterior probabilities
 ## based on the assumption of one causal variant in a region
-approx.bf.p <- function(p,f, N, s,pi_i) {
-    sd.prior <- 0.2
-    V <- Var.data.cc(f, N, s)
+approx.bf.p <- function(p,f, N, s,pi_i,type='CC') {
+    if(type=="QUANT") {
+      sd.prior <- 0.15
+      V <- Var.data(f, N)
+    } else {
+      sd.prior <- 0.2
+      V <- Var.data.cc(f, N, s)
+    }
     z <- qnorm(0.5 * p, lower.tail = FALSE)
     ## Shrinkage factor: ratio of the prior variance to the total variance
     r <- sd.prior^2 / (sd.prior^2 + V)
@@ -32,10 +37,6 @@ approx.bf.p <- function(p,f, N, s,pi_i) {
     lABF = 0.5 * (log(1-r) + (r * z^2))
     sBF <- logsum(lABF + log(pi_i))
     exp(lABF + log(pi_i))/(exp(sBF) + 1)
-    #ret <- data.frame(V,z,r,lABF,ppi)
-    #if(!is.null(suffix))
-    #  colnames(ret) <- paste(colnames(ret), suffix, sep=".")
-    #return(ret)
 }
 
 approx.bf.z <- function(z,f, N, s,pi_i) {
