@@ -3,14 +3,13 @@
 setwd("/home/ob219/git/as_basis/R/")
 ## 1. import data and compute different scalings
 source("./central_functions.R")
-tmpfile<-"/scratch/ob219/as_basis/figure_data/analysis1.RData"
+tmpfile<-"/scratch/ob219/as_basis/figure_data/analysis1_w_QT.RData"
 if(file.exists(tmpfile)){
-	load(tmpfile)
+        load(tmpfile)
 }else{
 	DT<-getGWASData()
 	## remove quantitative traits as well as meta.t1d
-	QT<-c('eosinophil','lymphocyte','myeloid','wbc')
-	DT<-DT[!DT$disease %in% c(QT,'meta.t1d'),]
+	DT<-DT[DT$disease != 'meta.t1d',]
 	## compute the different Metrics proposed
 	## beta == log(or) DT$lor already present
 	## Just use Z score
@@ -21,10 +20,11 @@ if(file.exists(tmpfile)){
 	DT[,gh_ss:=gamma_hat_ss(Z,total)]
 	DT[,gh_ss_pp:=gh_ss * pp]
 	# examine what happens if we compute gh using maf ?
-	DT[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(lor))]
+	DT[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(or))]
 	DT[,gh_maf_pp:=gh_maf * pp]
 	DT<-rbind(DT,createControl(DT))
-	metrics<-c('lor','Z','gh_ss','gh_ss_pp','gh_maf','gh_maf_pp')
+	#computing gamma hat using MAF does not make sense for QT
+	metrics<-c('lor','Z','gh_ss','gh_ss_pp')
 	bases<-lapply(metrics,function(m){
         	createMatrix(DT,var=m)
 	})
@@ -54,7 +54,7 @@ unscaled.comparisons<-lapply(cidx,function(i){
 })
 
 all.comparisons<-c(scaled.comparisons,unscaled.comparisons)
-title<-list(expression(hat(beta)),expression(Z),expression(hat(gamma[ss])),expression(hat(gamma[ss_ppi])),expression(hat(gamma[maf])),expression(hat(gamma[maf_ppi])),expression("Non PPi Input Projection"~hat(gamma[ss_ppi])),expression("Non PPi Input Projection"~hat(gamma[maf_ppi])))
+title<-list(expression(hat(beta)),expression(Z),expression(hat(gamma[ss])),expression(hat(gamma[ss_ppi])),expression("Non PPi Input Projection"~hat(gamma[ss_ppi])))
 plots<-lapply(seq_along(all.comparisons),function(i){
         m<-names(all.comparisons)[i]
         dat<-all.comparisons[[i]]
@@ -66,6 +66,6 @@ plots<-lapply(seq_along(all.comparisons),function(i){
 	dat$disease<-factor(dat$disease,levels=dat[order(dat$distance),]$disease)
 	ggplot(dat,aes(x=disease,y=distance,fill=hilight,color=hilight)) + geom_bar(stat="identity") + theme_bw() + xlab("Trait") + ylab("Distance") + ggtitle(title[[i]]) + theme(axis.text.x=element_text(angle = -90, hjust = 0)) + scale_fill_manual(name="Bar",values=c('white','firebrick'),guide=FALSE) + scale_color_manual(name="Bar",values=c('black','black'),guide=FALSE)
 })
-pdf("/home/ob219/git/as_basis/pdf/analysis1.pdf")	
+pdf("/home/ob219/git/as_basis/pdf/analysis1_w_QT.pdf")	
 multiplot(plotlist=plots,cols=3)
 dev.off()
