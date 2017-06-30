@@ -177,7 +177,7 @@ mvs.sigma.r<-function(r){
         return(as(make.positive.definite(r),"Matrix"))
 }
 
-GWASsim<-function(sm,n.sims=200){
+GWASsim<-function(sm,n.sims=200,under.null=FALSE){
         map<-sm$map
         ld.idx<-split(1:nrow(map),map$LDBLOCK)
         by.chr<-lapply(seq_along(ld.idx),function(i){
@@ -186,7 +186,11 @@ GWASsim<-function(sm,n.sims=200){
                 se_hat<-map[idx,]$se_hat
 		# here we shrink our estimates for beta towards 0 when the posterior for a SNP to have a non zero beta is low
 		# note because the standard error remains the same we still get Z scores that are not pp adjusted
-		beta_hat<-map[idx,]$lor * map[idx,]$pp
+		if(under.null){
+			beta_hat<-rep(0,length(idx))
+		}else{
+			beta_hat<-map[idx,]$lor * map[idx,]$pp
+		}
                 if(length(idx)==1){
                         message("Only one sample from normal distro")
                         ## just sample from norm
