@@ -220,3 +220,54 @@ GWASsim<-function(sm,n.sims=200,under.null=FALSE){
         ret
 }
 
+
+## this function computes a set of covariance matrices for use in GWASsim. 
+## if we store these it is simple to simulate what happens with sample size by
+## multiplying through covariance matrix by f(new.sample.size)/f(old.sample.size)
+
+computeBetaCovariates<-function(sm){
+	map<-sm$map
+	ld.idx<-split(1:nrow(map),map$LDBLOCK)
+        lapply(seq_along(ld.idx),function(i){
+                idx<-ld.idx[[i]]
+                ## grab standard error estimates
+                se_hat<-map[idx,]$se_hat
+                if(length(idx)==1){
+                        message("Only one sample from normal distro")
+			return(list(map=map[idx,],cov=se_hat))
+                }else{
+                        #multivariate
+                        gt<-sm$gt[,idx]
+                        colnames(gt)<-map[idx,]$POS
+                        # compute R statistic
+                        r<-ld(gt,gt,stats="R")
+                        # compute closest pos-def covariance matrix
+                        r<-as.matrix(mvs.sigma.r(Matrix(r)))
+                        ## for beta the covariance matrix is estimates by sigma x SE * SE^T
+                        cov_se<-tcrossprod(se_hat)
+                        cov.beta<-cov_se * r
+			return(list(map=map[idx,],cov=cov.beta))
+                }
+        })
+}
+
+## this is a function to simulate shared GWAS 
+GWASsimSampleSize<-function(i,scase=4000,sctrl=4000,ncase=4000,nctrl=4000,n.sims=200){
+	## each one of these is chromosome
+	ss.var.adj<-(1/(ncase+nctrl))/(1/(scase/sctrl))
+	by.ld<-lapply(i,function(x){
+		map<-x$map
+		cov<-x$cov
+		beta_hat<-map$lor * map$pp
+		if(nrow(map)==1){
+			ret<-t(rnorm(n.sims,mean=beta_hat,sd=cov * ss.var.adj^2))
+		}else{
+			ret<-mvs.perm(beta_hat,cov * ss.var.adj,n=n.sims)
+		}
+		(1/map$se_hat) * ret
+	})
+	## here we assume that the ld blocks are processed in chromosomal order
+	ret<-data.table(do.call('rbind',by.ld))
+	ret$id<-do.call('c',lapply(i,function(x) x$map$id))
+	ret
+}
