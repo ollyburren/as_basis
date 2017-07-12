@@ -42,6 +42,7 @@ DT<-DT[!DT$disease %in% c(QT,'ill.t1d','aff.t1d'),]
 DT[,Z:=qnorm(0.5 * p.val, lower.tail = FALSE) * sign(lor)]
 DT[,lp0:=log(1-approx.bf.z2(Z,maf,cases+controls,cases/(cases+controls),pi_1)),by=c('disease','ld.block')]
 
+
 ## next create a matrix that we can sample from
 
 tmp<-melt(DT,id.vars=c('id','disease'),measure.vars = 'lp0')
@@ -70,7 +71,7 @@ for.plot<-do.call('rbind',lapply(seq_along(eb),function(i){
 for.plot<-as.data.table(for.plot)
 setnames(for.plot,c('n','q'))
 
-ggplot(for.plot,aes(x=n,y=q,z=n2,p=n3)) + geom_point() + xlab("Number of diseases") + ylab(expression(bar(q[i])))
+#ggplot(for.plot,aes(x=n,y=q,z=n2,p=n3)) + geom_point() + xlab("Number of diseases") + ylab(expression(bar(q[i]))) + geom_smooth(method="lm",formula=y ~ poly(x,2)) + geom_line(aes(y=pi_plus))
 
 
 ## code for computing the best fit for prior computation
@@ -90,3 +91,54 @@ lapply(list(mod1,mod2,mod3),summary)
 lapply(list(mod1,mod2,mod3),BIC)
 
 ## this means that model two wins i.e q = (6.6e-4 x n) - (1.3 x n^2)
+
+## model looks a bit hooky CHris idea is to examine the independece of pi_i
+
+bar_pi_i<-mean(for.plot[for.plot$n==1,]$q)
+for.plot$pi_plus<-for.plot$n*bar_pi_i
+
+pdf(file="/home/ob219/git/as_basis/pdf/qi_empirical_est.pdf")
+ggplot(for.plot,aes(x=n,y=q,z=n2,p=n3)) + geom_point() + xlab("Number of diseases") + ylab(expression(bar(q[i]))) + geom_smooth(method="lm",formula=y ~ poly(x,2),colour="steelblue3") + geom_line(aes(y=pi_plus),color='firebrick1') + theme_bw()
+dev.off()
+
+
+## so to compute overall weightings for a disease compute the Bayes factor for a SNP to be causal in one or more diseases
+
+DT[,Z:=qnorm(0.5 * p.val, lower.tail = FALSE) * sign(lor)]
+
+## compute the log(P(H_0 | Data)) i.e. posterior prob that beta == 0 for a given trait which is log(1 - P(H_1 | Data))
+
+DT[,lp0:=log(1-approx.bf.z2(Z,maf,cases+controls,cases/(cases+controls),pi_1))]
+
+
+## compute q_i across all diseases in the basis byt taking product over all diseases
+
+DT[,q_i:=1-exp(sum(lp0)),by=id]
+
+## we take our empirical prior using the mean q_i across all SNPs note that q_i is now trait agnostic.
+
+emp<-mean(DT[,list(mean_qi=mean(q_i)),by=id]$mean_qi)
+
+## prior odds
+
+po<-emp/(1-emp)
+
+## note that emp us for h1 that beta != 0 therefore we need to take reciprocal as equation assumes pi_0 - see notes
+
+po<-1/po
+
+## we use the above to compute an approx BF that a SNP is causal in at least one disease
+
+DT[,uABF:=po*(q_i/(1-q_i))]
+
+## ok for each trait we can now compute posterior that snp i is causal and use this as our weightings
+
+computePP<-function(BF,pi_i){
+  lABF<-log(BF)
+  tABF <- c(lABF,0)
+  vpi_i<-c(rep(pi_i,length(lABF)),1)
+  sBF <- logsum(tABF + log(vpi_i))
+  exp(lABF+log(pi_i)-sBF)
+}
+
+DT[,upp:=computePP(uABF,emp),by=c('disease','ld.block')]
