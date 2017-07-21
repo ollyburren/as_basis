@@ -38,6 +38,7 @@ snpStats.1kg.files<-list.files(path=file.path(DATA_DIR,'as_basis/support/simulat
 sim.DT<-subset(DT,disease=='ill.t1d')
 sim.ss.total<-unique(sim.DT$total)
 sim.ss.prop<-unique(sim.DT$prop)
+metrics<-c('lor','Z','gh_ss','gh_ss_pp','gh_maf','gh_maf_pp')
 if(!file.exists(tmpfile)){
 	sim.by.chr<-lapply(snpStats.1kg.files,function(f){
 	        message(sprintf("Processing %s",f))
@@ -68,7 +69,6 @@ if(!file.exists(tmpfile)){
 	setnames(all.chr.sim,'variable','simno')
 	## create a bunch of simulations for each of the different metrics
 	## create simulations
-	metrics<-c('lor','Z','gh_ss','gh_ss_pp','gh_maf','gh_maf_pp')
 	sims<-lapply(metrics,function(m){
 		message(sprintf("Processing %s",m))
 		tmp<-melt(all.chr.sim,id.vars=c('id','simno'),measure.vars = m)
@@ -124,7 +124,7 @@ unscaled.sims<-lapply(cidx,function(i){
 	   # key difference here is that projection needs to be unscaled
 	   bname<-sub('\\_pp$','',names(sim.bases)[i])
            p<-sims[[bname]][j+(sim.size/2),]
-           sbasis<-rbind(bases[[i]],sim)
+           sbasis<-rbind(sim.bases[[i]],sim)
            pca<-prcomp(sbasis,center=TRUE,scale=FALSE)
            ## project on another simulation
            proj<-predict(pca,t(p))
@@ -138,7 +138,7 @@ ci<-c(0.025,0.5,0.985)
 empirical_confidence_intervals<-lapply(all.sims,quantile,probs=ci)
 names(empirical_confidence_intervals)<-c(metrics,c('unscaled_gh_ss','unscaled_gh_maf'))
 # Need to do unscaled input - then plot barplots using code from analysis1.R
-
+save(all.sims,file="/scratch/ob219/as_basis/figure_data/analysis1_shared_simulation.RData")
 ## what about actual data ?
 (load("/scratch/ob219/as_basis/figure_data/analysis1.RData"))
 scaled.comparisons<-lapply(bases,function(b){

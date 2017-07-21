@@ -221,7 +221,7 @@ GWASsim<-function(sm,n.sims=200,under.null=FALSE){
 }
 
 
-## this function computes a set of covariance matrices for use in GWASsim. 
+## this function computes a set of covariance matrices for use in GWASsim.
 ## if we store these it is simple to simulate what happens with sample size by
 ## multiplying through covariance matrix by f(new.sample.size)/f(old.sample.size)
 
@@ -251,10 +251,12 @@ computeBetaCovariates<-function(sm){
         })
 }
 
-## this is a function to simulate shared GWAS 
+## this is a function to simulate shared GWAS
 GWASsimSampleSize<-function(i,scase=4000,sctrl=4000,ncase=4000,nctrl=4000,n.sims=200){
 	## each one of these is chromosome
-	ss.var.adj<-(1/(ncase+nctrl))/(1/(scase/sctrl))
+	# I think that this is upside down perhaps we rerun everything otherway
+	#ss.var.adj<-(1/(ncase+nctrl))/(1/(scase/sctrl))
+	ss.var.adj<-(1/(scase+sctrl))/(1/(ncase+nctrl))
 	by.ld<-lapply(i,function(x){
 		map<-x$map
 		cov<-x$cov

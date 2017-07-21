@@ -35,8 +35,11 @@ approx.bf.p <- function(p,f, N, s,pi_i,type='CC') {
     r <- sd.prior^2 / (sd.prior^2 + V)
     ## Approximate BF  # I want ln scale to compare in log natural scale with LR diff
     lABF = 0.5 * (log(1-r) + (r * z^2))
-    sBF <- logsum(lABF + log(pi_i))
-    exp(lABF + log(pi_i))/(exp(sBF) + 1)
+    ## tABF - to add one we create another element at the end of zero for which pi_i is 1
+    tABF <- c(lABF,0)
+    vpi_i<-c(rep(pi_i,length(lABF)),1)
+    sBF <- logsum(tABF + log(vpi_i))
+    exp(lABF+log(pi_i)-sBF)
 }
 
 approx.bf.z <- function(z,f, N, s,pi_i) {
@@ -51,4 +54,17 @@ approx.bf.z <- function(z,f, N, s,pi_i) {
     vpi_i<-c(rep(pi_i,length(lABF)),1)
     sBF <- logsum(tABF + log(vpi_i))
     exp(lABF+log(pi_i)-sBF)
+}
+
+approx.bf.z2 <- function(z, f, N, s, p) {
+    sd.prior <- 0.2
+    V <- Var.data.cc(f, N, s)
+    ## Shrinkage factor: ratio of the prior variance to the total variance
+    r <- sd.prior^2 / (sd.prior^2 + V)
+    ## Approximate BF  # I want ln scale to compare in log natural scale with LR diff
+    lABF = 0.5 * (log(1-r) + (r * z^2))
+    po = exp(lABF + log(p) - log(1-p))
+    pp = po/(1+po)
+    ## tABF - to add one we create another element at the end of zero for which pi_i is 1
+    ## exp(lABF+log(1-pi_i)) + pi_1
 }

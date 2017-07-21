@@ -38,6 +38,7 @@ snpStats.1kg.files<-list.files(path=file.path(DATA_DIR,'as_basis/support/simulat
 sim.DT<-subset(DT,disease=='ill.t1d')
 sim.ss.total<-unique(sim.DT$total)
 sim.ss.prop<-unique(sim.DT$prop)
+metrics<-c('lor','Z','gh_ss','gh_ss_pp','gh_maf','gh_maf_pp')
 # using 1kg we wish to simulate betas for ill.t1d study
 if(!file.exists(tmpfile)){
 	sim.by.chr<-lapply(snpStats.1kg.files,function(f){
@@ -135,9 +136,13 @@ unscaled.sims<-lapply(cidx,function(i){
 })
 names(unscaled.sims)<-c('unscaled_gh_ss','unscaled_gh_maf')
 ci<-c(0.025,0.5,0.985)
-empirical_confidence_intervals<-lapply(unscaled.sims,quantile,probs=ci)
-names(empirical_confidence_intervals)<-c('unscaled_gh_ss','unscaled_gh_maf')
+empirical_confidence_intervals_null<-lapply(unscaled.sims,quantile,probs=ci)
+names(empirical_confidence_intervals_null)<-c('unscaled_gh_ss','unscaled_gh_maf')
+## load in shared plot confidence intervals
+all.sims.shared<-get(load("/scratch/ob219/as_basis/figure_data/analysis1_shared_simulation.RData"))
 # Need to do unscaled input - then plot barplots using code from analysis1.R
+empirical_confidence_intervals_shared<-lapply(all.sims.shared,quantile,probs=ci)
+names(empirical_confidence_intervals_shared)<-c(metrics,c('unscaled_gh_ss','unscaled_gh_maf'))
 
 ## what about actual data ?
 (load("/scratch/ob219/as_basis/figure_data/analysis1.RData"))
@@ -160,9 +165,12 @@ unscaled.comparisons<-lapply(cidx,function(i){
         with(comp,compareVarWEuc(pca,proj))
 })
 
+empirical_confidence_intervals_shared<-empirical_confidence_intervals_shared[which(names(empirical_confidence_intervals_shared) %in% c('unscaled_gh_ss','unscaled_gh_maf'))]
+
 title<-list(expression("Unscaled"~hat(gamma[ss_ppi])),expression("Unscaled"~hat(gamma[maf_ppi])))
 plots<-lapply(seq_along(unscaled.comparisons),function(i){
-	mci<-empirical_confidence_intervals[[i]]
+	mcin<-empirical_confidence_intervals_null[[i]]
+	mshared<-empirical_confidence_intervals_shared[[i]]
         m<-names(unscaled.comparisons)[i]
         dat<-unscaled.comparisons[[i]]
         dat<-dat[dat!=0]
@@ -171,7 +179,11 @@ plots<-lapply(seq_along(unscaled.comparisons),function(i){
         dat$hilight<-logical(length=nrow(dat))
         dat[dat$disease %in% c('ill.t1d','control'),]$hilight<-TRUE
         dat$disease<-factor(dat$disease,levels=dat[order(dat$distance),]$disease)
-        ggplot(dat,aes(x=disease,y=distance,fill=hilight,color=hilight)) + geom_bar(stat="identity") + theme_bw() + xlab("Trait") + ylab("Distance") + ggtitle(title[[i]]) + theme(axis.text.x=element_text(angle = -90, hjust = 0)) + scale_fill_manual(name="Bar",values=c('white','firebrick'),guide=FALSE) + scale_color_manual(name="Bar",values=c('black','black'),guide=FALSE) + geom_rect(xmin=0,xmax=length(levels(dat$disease)) + 0.5,ymin=mci[1],ymax=mci[3],alpha=0.1,color=NA,fill='grey90') + geom_hline(yintercept=mci[2],color='firebrick')
+        ggplot(dat,aes(x=disease,y=distance,fill=hilight,color=hilight)) + geom_bar(stat="identity") + theme_bw() + xlab("Trait") + ylab("Distance") + ggtitle(title[[i]]) + theme(axis.text.x=element_text(angle = -90, hjust = 0)) + scale_fill_manual(name="Bar",values=c('white','firebrick'),guide=FALSE) + scale_color_manual(name="Bar",values=c('black','black'),guide=FALSE) + 
+geom_rect(xmin=0,xmax=length(levels(dat$disease)) + 0.5,ymin=mcin[1],ymax=mcin[3],alpha=0.1,color=NA,fill='grey90') + 
+geom_hline(yintercept=mcin[2],color='firebrick') + 
+geom_rect(xmin=0,xmax=length(levels(dat$disease)) + 0.5,ymin=mshared[1],ymax=mshared[3],alpha=0.1,color=NA,fill='steelblue') + 
+geom_hline(yintercept=mshared[2],color='blue')
 })
 
 pdf("/home/ob219/git/as_basis/pdf/analysis2_w_sim.pdf")

@@ -43,7 +43,8 @@ processIBD<-function(DT){
 	##convert alleles to upper case
 	for(n in c('Allele1','Allele2'))
 	        DT[[n]]<-toupper(DT[[n]])
-	setnames(DT,c('id','a1','a2','p.val','or','chr','position'))
+	## note that we switch a1 and a2 as alleles are wrt to a2
+	setnames(DT,c('id','a2','a1','p.val','or','chr','position'))
 	DT<-flip(DT)
 	DT<-formatOut(DT)
 }
@@ -195,7 +196,8 @@ processT1D<-function(t1d,or.cname,se.cname,p.cname){
 	setnames(tmp,c(cnames[1:5],'or','se','p.val'))
 	#tmp$p.val<-2*pnorm(abs(log(tmp$or)/tmp$se),lower.tail=FALSE)
 	tmp.out<-tmp[!is.na(tmp$p.val),c('rsid','chromosome','position','a0','a1','or','p.val'),with=FALSE]
-	setnames(tmp.out,c('id','chr','position','a1','a2','or','p.val'))
+	## note that OR is wrt allele2 so flip
+	setnames(tmp.out,c('id','chr','position','a2','a1','or','p.val'))
 	tmp.out<-flip(tmp.out)
 	formatOut(tmp.out)
 }
@@ -227,7 +229,8 @@ processJIA<-function(jia,beta.cname,se.cname){
         tmp$Z<-abs(tmp$beta/tmp$se)
         tmp$p<-pnorm(-abs(tmp$Z))
         tmp.out<-tmp[,c('id','chr','position','a1','a2','or','p'),with=FALSE]
-        setnames(tmp.out,c('id','chr','position','a1','a2','or','p.val'))
+	## note that or is wrt allele2 sp flip
+        setnames(tmp.out,c('id','chr','position','a2','a1','or','p.val'))
         tmp.out<-flip(tmp.out)
         formatOut(tmp.out)
 }
@@ -278,8 +281,9 @@ all.blood<-lapply(bfiles,function(f){
 	tmp<-tmp[asthma.out]
 	tmp<-tmp[,names(tmp),with=FALSE]
 	tmp<-tmp[!is.na(tmp$P),c('ID','CHR','BP','REF','ALT','EFFECT','P'),with=FALSE]
-	tmp$EFFECT<-exp(tmp$EFFECT)
-	setnames(tmp,c('id','chr','position','a1','a2','or','p.val'))
+	## EFFECT is wrt ALT therefore need to swap. Also Effect is the log(OR) so need to compute exp(EFFECT)
+	setnames(tmp,c('id','chr','position','a2','a1','or','p.val'))
+	tmp$or<-exp(tmp$or)
 	tmp<-flip(tmp)
 	tmp<-formatOut(tmp)
 })

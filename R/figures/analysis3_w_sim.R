@@ -2,14 +2,14 @@ library(optparse)
 
 
 option_list = list(
-  	make_option(c("-c", "--cases"), type="numeric", default=4000, 
+  	make_option(c("-c", "--cases"), type="numeric", default=4000,
               help="Number of cases to simulate", metavar="numeric"),
-  	make_option(c("-t", "--controls"), type="numeric", default=4000, 
+  	make_option(c("-t", "--controls"), type="numeric", default=4000,
               help="Number of controls to simulate", metavar="numeric"),
-	make_option(c("-o", "--out"), type="character", 
+	make_option(c("-o", "--out"), type="character",
               help="output file name [default= %default]", metavar="character")
-) 
- 
+)
+
 opt_parser = OptionParser(option_list=option_list);
 opt = parse_args(opt_parser)
 
@@ -111,7 +111,7 @@ sims<-processSims(sims,c('gh_ss','gh_maf'))
 ## some simulated variants are zero (perhaps because lor = 0 remove these first - we assume that these are the same for all metrics
 (load("/scratch/ob219/as_basis/figure_data/analysis1.RData"))
 bases<-lapply(bases,function(b){
-	b[!rownames(b) %in% c('aff.t1d','ill.t1d'),colnames(b) %in% colnames(sims[[1]])]	
+	b[!rownames(b) %in% c('aff.t1d','ill.t1d'),colnames(b) %in% colnames(sims[[1]])]
 })
 cidx<-which(names(basis.sims) %in% c('gh_ss_pp','gh_maf_pp'))
 unscaled.sims<-lapply(names(basis.sims),function(n){
