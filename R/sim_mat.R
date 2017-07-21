@@ -291,6 +291,26 @@ filt<-subset(final.t.ss,id %in% all.chr.sim$id & disease %in% c('asthma','CD','C
 setdiff(all.chr.sim$id,filt$id)
 ## appears OK
 
+## create control
+createControl<-function(DT){
+  ctrl<-subset(DT,!duplicated(DT$id))
+  ctrl[,disease:='control']
+  ctrl[,or:=1]
+  ctrl[,p.val:=1]
+  ctrl[,pp:=0]
+  ctrl[,lor:=1]
+  ctrl[,cases:=4000]
+  ctrl[,controls:=4000]
+  ctrl[,total:=cases+controls]
+  ctrl[,prop:=0.5]
+  ctrl[,Z:=0]
+  ctrl[,gh_ss:=gamma_hat_ss(Z,total)]
+  ctrl[,gh_ss_pp:=gh_ss * pp]
+  # examine what happens if we compute gh using maf ?
+  ctrl[,gh_maf:=gamma_hat_maf(controls,cases,maf,exp(or))]
+  ctrl[,gh_maf_pp:=gh_maf * pp]
+}
+
 createORMatrix<-function(DT,var='lor'){
    DT<-melt(DT,id.vars=c('id','disease'),measure.vars = var) 
    ret<-data.table::dcast(DT,disease~id)

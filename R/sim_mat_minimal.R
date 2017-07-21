@@ -7,6 +7,9 @@ library(mvtnorm)
 library(reshape2)
 library(ggplot2)
 
+DATA_DIR<-'/scratch/ob219/'
+source(file.path(DATA_DIR,'as_basis/tmp/wakefield.R'))
+NSIM=1
 
 ## FUNCTION
 
@@ -36,7 +39,7 @@ mvs.sigma.r<-function(r){
 }
 
 # simulate a GWAS based on log(OR) from an actual GWAS
-GWASsim<-function(sm,n.sims=200){
+GWASsim<-function(sm,n.sims=NSIM*2){
 	map<-sm$map
         ld.idx<-split(1:nrow(map),map$LDBLOCK)
         by.chr<-lapply(seq_along(ld.idx),function(i){
@@ -48,7 +51,7 @@ GWASsim<-function(sm,n.sims=200){
                         message("Only one sample from normal distro")
                         ## just sample from norm
                         ## var_beta is SE^2 but rnorm takes standard deviation so no need
-                        ret<-t(rnorm(200,mean=beta_hat,sd=se_hat))
+                        ret<-t(rnorm(n.sims,mean=beta_hat,sd=se_hat))
                 }else{
                         #multivariate
                         gt<-sm$gt[,idx]
@@ -61,7 +64,7 @@ GWASsim<-function(sm,n.sims=200){
                         cov_se<-tcrossprod(se_hat)
                         cov.beta<-cov_se * r
                         ## simulate beta
-                        ret<-mvs.perm(beta_hat,cov.beta,n=200)
+                        ret<-mvs.perm(beta_hat,cov.beta,n=n.sims)
                 }
 		# compute Z score
                 (1/se_hat) * ret
@@ -108,7 +111,19 @@ compareVarWEuc<-function(pc,proj.pc,cvar){
     apply(all.pc,1,nEucledian,all.pc[idx,],vexp)
 }
 
-DATA_DIR<-'/scratch/ob219/'
+approx.bf.z2 <- function(z, f, N, s, p) {
+    sd.prior <- 0.2
+    V <- Var.data.cc(f, N, s)
+    ## Shrinkage factor: ratio of the prior variance to the total variance
+    r <- sd.prior^2 / (sd.prior^2 + V)
+    ## Approximate BF  # I want ln scale to compare in log natural scale with LR diff
+    lABF = 0.5 * (log(1-r) + (r * z^2))
+    po = exp(lABF + log(p) - log(1-p))
+    pp = po/(1+po)
+    ## tABF - to add one we create another element at the end of zero for which pi_i is 1
+    ## exp(lABF+log(1-pi_i)) + pi_1
+}
+
 ## load processed summary statistics for all 17 traits
 (load(file.path(DATA_DIR,'as_basis/merged_data/17_traits.RData')))
 ## loads into final.t 
@@ -135,6 +150,7 @@ sim.by.chr<-lapply(of,function(f){
 	## for some these will be NA estimate using above function
 	idx<-which(is.nan(sm$map$se_hat))
 	sm$map[idx,]$se_hat<-approxSE(sm$map[idx,]$maf,ss[ss$disease==target.gwas,]$total)
+	sm$map[,pp:=approx.bf.z2(z=Z,f=maf,N=target.gwas.total.sample.size,s=target.gwas.prop.case.control,p=1e-4)]
 	GWASsim(sm)
 })
 # OK so have a matrix of Z scores
@@ -148,21 +164,22 @@ to.comp.ppi<-final.t[final.t$disease==target.gwas,c('ld.block','maf','id'),with=
 tmpy<-merge(tmp,to.comp.ppi,by.x='id',by.y='id')
 ## try and d  things the data.table way
 ## compute ppi
-source(file.path(DATA_DIR,'as_basis/tmp/wakefield.R'))
-tmpy[,ppi:=approx.bf.z(value,maf,target.gwas.total.sample.size,target.gwas.prop.case.control,1e-4),by=c('ld.block','variable')]
+tmpy[,pp:=approx.bf.z2(value,maf,target.gwas.total.sample.size,target.gwas.prop.case.control,1e-4)]
 ## constant variance due to sample size
 var_sam<-1/sqrt(2*(target.gwas.total.sample.size))
-tmpy$nv<-tmpy$value * var_sam * tmpy$ppi
+tmpy$nv<-tmpy$value * var_sam * tmpy$pp
 tmpy$value<-tmpy$nv
 tmpy<-tmpy[,1:3,with=FALSE]
 tmpy.sim<-dcast(tmpy,variable~id)
 tmpy.sim<-tmpy.sim[,2:ncol(tmpy.sim)]
 ## columns here are different to those in basis need to reorder
-ss<-ss[,c('disease','total'),with=FALSE]
+#ss<-ss[,c('disease','total'),with=FALSE]
 final.t.ss<-merge(final.t,ss,by.x='disease',by.y='disease')
 #multiply by two to get allele counts
 final.t.ss$Zadj<-final.t.ss$Z * sqrt(1/(2*final.t.ss$total))
-final.t.ss$pZadj<-final.t.ss$Zadj * final.t.ss$pp 
+## I think that here the pp needs to be the new posterior
+final.t.ss[,npp:=approx.bf.z2(Z,maf,total,prop,1e-4)]
+final.t.ss[,pZadj:=final.t.ss$Zadj * final.t.ss$npp,]
 ##there are some variants missing - for this analysis it should not matter too much as long as it's not an error.
 ## instead we need to make sure that these agree with the actual scores we are using for the pca basis.
 filt<-subset(final.t.ss,id %in% all.chr.sim$id & disease %in% c('asthma','CD','CEL','eosinophil','JIA_nosys','lymphocyte','MS','myeloid','PBC','PSC','RA','SLE','UC','wbc'))
@@ -177,12 +194,12 @@ basis<-as.matrix(basis)
 tmpy.sim<-as.matrix(tmpy.sim)
 ## next we add a row from sim and compute pca then project from proj
 ## will take approx an hour to compute serially
-results<-lapply(1:100,function(i){
+results<-lapply(1:NSIM,function(i){
 	message(sprintf("Processing %d",i))
 	mat<-rbind(basis,tmpy.sim[i,])
 	rownames(mat)[length(rownames(mat))]<-'sim'
 	pca<-prcomp(mat,center=TRUE,scale=FALSE)
-	proj.pc<-predict(pca,t(tmpy.sim[i+100,]))
+	proj.pc<-predict(pca,t(tmpy.sim[i+NSIM,]))
 	computeVarWEuc(pca,proj.pc)
 })
 
@@ -201,6 +218,7 @@ act$Z<-qnorm(0.5 * act$p.val, lower.tail = FALSE) * sign(act$lor)
 ## need to recalculate Zadj for sample size
 act<-merge(act,ss,by.x='disease',by.y='disease')
 act$Zadj<-act$Z * 1/sqrt(2*act$total)
+act[,pp:=approx.bf.z2(z=Z,f=maf,N=target.gwas.total.sample.size,s=target.gwas.prop.case.control,p=1e-4)]
 act$pZadj<-act$Zadj * act$pp 
 act.basis<-createMatrix(act,var='pZadj')
 ## remove aff.t1d that we want to predict

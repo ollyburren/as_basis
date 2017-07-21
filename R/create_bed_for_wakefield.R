@@ -130,7 +130,6 @@ ol<-as.matrix(findOverlaps(snp.gr,ld.gr))
 final.t$ld.block<-0
 final.t[ol[,1],]$ld.block<-ol[,2]
 
-by.disease<-split(final.t,final.t$disease)
 
 add.pp<-function(DT,pi_i=1e-4,total,prop,type){
 	pp<-with(DT,approx.bf.p(p.val,maf,total,prop,pi_i,type))
@@ -141,6 +140,7 @@ add.pp<-function(DT,pi_i=1e-4,total,prop,type){
 maj_idx<-which(final.t$risk.allele.freq>0.5)
 final.t$maf<-final.t$risk.allele.freq
 final.t[maj_idx,]$maf<-1-final.t[maj_idx,]$maf
+by.disease<-split(final.t,final.t$disease)
 ## for each disease 
 all.pp<-lapply(names(by.disease),function(n){
 	message(paste("Processing",n))
@@ -159,9 +159,35 @@ all.pp<-lapply(names(by.disease),function(n){
 })
 
 final.t<-rbindlist(all.pp)
+final.t$lor<-log(final.t$or)
 final.t$por<-log(final.t$or) * final.t$pp
 
+final.t$Z<-sign(final.t$lor) * qnorm(final.t$p.val/2,lower.tail=FALSE)
+final.t$pZ<-final.t$Z * final.t$pp
 
+## final thing to try is adjusting Z so that includes variance due to sample size
+
+by.disease<-split(final.t,final.t$disease)
+all.adjZ<-lapply(names(by.disease),function(n){
+        message(paste("Processing",n))
+        ss.idx<-which(ss$disease==n)
+        cases<-ss[ss.idx,]$cases
+        controls<-ss[ss.idx,]$controls
+        total<-cases+controls
+        tmp<-by.disease[[n]]
+	ret<-tmp$Z * sqrt(1/total)
+	#if(controls==0){
+	#	ret<-tmp$Z * sqrt(1/total)
+	#}else{
+	#	ret<-tmp$Z * sqrt((1/cases) + (1/controls))
+	#}
+	return(ret)
+})
+
+final.t$Zadj<-do.call('c',all.adjZ)
+final.t$pZadj<-final.t$Zadj * final.t$pp
+
+save(final.t,file='/scratch/ob219/as_basis/tmp/final.t.RData')
 ## f is defined as the minor allele frequency
 ##split by sample and compute the partial variance 
 ## this should be done on a study by study basis
@@ -181,8 +207,17 @@ createORMatrix<-function(DT,p.val.thresh=1,var='lor'){
 }
 
 no.pp<-createORMatrix(final.t,var='por')
-save(no.pp,file="/home/ob219/scratch/as_basis/tmp/no_p_pp_matrix2.RData")
-#save(final,file="/home/ob219/scratch/as_basis/tmp/all_or_shared.RData")
+save(no.pp,file="/home/ob219/scratch/as_basis/tmp/no_p_pp_matrix3.RData")
+no.lor<-createORMatrix(final.t)
+save(no.lor,file="/home/ob219/scratch/as_basis/tmp/no_p_lor_matrix3.RData")
+no.Z<-createORMatrix(final.t,var='Z')
+save(no.Z,file="/home/ob219/scratch/as_basis/tmp/no_p_Z_matrix.RData")
+no.pZ<-createORMatrix(final.t,var='pZ')
+save(no.pZ,file="/home/ob219/scratch/as_basis/tmp/no_p_pZ_matrix.RData")
+no.Zadj<-createORMatrix(final.t,var='Zadj')
+save(no.Zadj,file="/home/ob219/scratch/as_basis/tmp/no_p_Zadj_matrix.RData")
+no.pZadj<-createORMatrix(final.t,var='pZadj')
+save(no.pZadj,file="/home/ob219/scratch/as_basis/tmp/no_p_pZadj_matrix.RData")
 
 
 ### p.vals cut offs 

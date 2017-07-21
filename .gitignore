@@ -2,4 +2,8 @@ markdown/*.pdf
 markdown/*.html
 markdown/*cache/
 markdown/pca_files/*
+sh/*
 *.swp
+.*
+pdf/*
+misc/*
