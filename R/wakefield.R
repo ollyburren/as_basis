@@ -68,3 +68,12 @@ approx.bf.z2 <- function(z, f, N, s, p) {
     ## tABF - to add one we create another element at the end of zero for which pi_i is 1
     ## exp(lABF+log(1-pi_i)) + pi_1
 }
+
+# this function computes the posterior prob that a SNP is causal in any one of the basis traits
+computePWI<-function(BF,pi_i){
+  lABF<-log(BF)
+  tABF <- c(lABF,0)
+  vpi_i<-c(rep(pi_i,length(lABF)),1)
+  sBF <- logsum(tABF + log(vpi_i))
+  exp(lABF+log(pi_i)-sBF)
+}

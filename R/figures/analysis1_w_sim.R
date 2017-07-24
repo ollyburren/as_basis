@@ -31,6 +31,36 @@ DT[,gh_ss_pp:=gh_ss * pp]
 # examine what happens if we compute gh using maf ?
 DT[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(or))]
 DT[,gh_maf_pp:=gh_maf * pp]
+
+## code to compute weightings across all diseases in basis
+##
+DT.no.affy<-DT[DT$disease != 'aff.t1d']
+DT.no.affy[,lp0:=log(1-approx.bf.z2(Z,maf,cases+controls,cases/(cases+controls),pi_1)),by=c('disease','ld.block')]
+## compute q_i across all diseases for i-th SNP in the basis by taking product over all diseases
+DT.no.affy[,q_i:=1-exp(sum(lp0)),by=id]
+## our empirical prior for these diseases is then
+emp<-mean(DT.no.affy[,list(mean_qi=mean(q_i)),by=id]$mean_qi)
+## prior odds
+po<-emp/(1-emp)
+## note that emp us for h1 that beta != 0 therefore we need to take reciprocal as equation assumes pi_0 - see notes
+po<-1/po
+DT.no.affy[,uABF:=po*(q_i/(1-q_i))]
+## add back in affy once we have q values
+DT<-rbind(DT.no.affy,DT[DT$disease == 'aff.t1d',],fill=TRUE)
+DT[,uABF:=max(uABF,na.rm=TRUE),by=id]
+
+## unfortunately this produces some very large BF somw of which are infinite. One way around this is to set really large and infinite BF
+## to something tractable.
+## I looked at numeric calculations and even with sticking to the log scale calculations will be infinite. For time being set uABF to max(uABF). This will
+## have the effect of averaging over SNPs in a region (even when one is a clear winner) but we may want this to offset any errors in our OR estimation
+## take the strategy that top 0.0001 are actually equal and assign this
+BIG<-quantile(DT[is.finite(DT$uABF),]$uABF,prob=0.9999)
+## BIG is still rather large but at least tractable
+DT[is.infinite(uABF) | uABF > BIG, uABF:=BIG]
+DT[,pwi:=computePWI(uABF,emp),by=c('disease','ld.block')]
+DT[,gh_ss_pw:=gh_ss * pwi]
+DT[,gh_maf_pw:=gh_maf * pwi]
+
 DT<-rbind(DT,createControl(DT))
 ## note that these files have previously been generated using ill.t1d - so data is already merged in
 snpStats.1kg.files<-list.files(path=file.path(DATA_DIR,'as_basis/support/simulations/1KGenome_snpStats'),pattern="*.RData",full.names=TRUE)
@@ -38,7 +68,7 @@ snpStats.1kg.files<-list.files(path=file.path(DATA_DIR,'as_basis/support/simulat
 sim.DT<-subset(DT,disease=='ill.t1d')
 sim.ss.total<-unique(sim.DT$total)
 sim.ss.prop<-unique(sim.DT$prop)
-metrics<-c('lor','Z','gh_ss','gh_ss_pp','gh_maf','gh_maf_pp')
+metrics<-c('lor','Z','gh_ss','gh_ss_pp','gh_ss_pw','gh_maf','gh_maf_pp','gh_maf_pw')
 if(!file.exists(tmpfile)){
 	sim.by.chr<-lapply(snpStats.1kg.files,function(f){
 	        message(sprintf("Processing %s",f))
@@ -56,7 +86,7 @@ if(!file.exists(tmpfile)){
 	all.chr.sim<-do.call('rbind',sim.by.chr) %>% melt(.,id.vars=c('id')) %>% merge(.,sim.DT,by.x='id',by.y='id')
 	# compute posterior prob for inclusion
 	all.chr.sim[,ppi:=approx.bf.z(value,maf,sim.ss.total,sim.ss.prop,pi_1),by=c('ld.block','variable')]
-	## reconstitute standard error 
+	## reconstitute standard error
 	all.chr.sim[,se:=lor/Z]
 	all.chr.sim[,Z:=value]
 	all.chr.sim[,gh_ss:=gamma_hat_ss(Z,total)]
@@ -66,6 +96,17 @@ if(!file.exists(tmpfile)){
 	# examine what happens if we compute gh using maf ?
 	all.chr.sim[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(lor))]
 	all.chr.sim[,gh_maf_pp:=gh_maf * ppi]
+
+	# sort out pw metrics
+
+	## to do this properly we should probably recompute uABF for each simulation as
+	## it depends on the basis input - in this we are assuming that it is fixed for each
+	## simulation.
+
+	all.chr.sim[,pwi:=computePWI(uABF,emp),by=c('disease','ld.block')]
+  all.chr.sim[,gh_ss_pw:=gh_ss * pwi]
+	all.chr.sim[,gh_maf_pw:=gh_maf * pwi]
+
 	setnames(all.chr.sim,'variable','simno')
 	## create a bunch of simulations for each of the different metrics
 	## create simulations
@@ -93,10 +134,10 @@ sims<-lapply(sims,function(s){
 	s[,sim.snps]
 })
 sim.bases<-lapply(bases,function(b){
-	b[!rownames(b) %in% c('ill.t1d','aff.t1d'),colnames(b) %in% sim.snps]	
+	b[!rownames(b) %in% c('ill.t1d','aff.t1d'),colnames(b) %in% sim.snps]
 })
 bases<-lapply(bases,function(b){
-	b[,colnames(b) %in% sim.snps]	
+	b[,colnames(b) %in% sim.snps]
 })
 # check that colnames are in the same order
 #lapply(seq_along(sim.bases),function(i){
@@ -116,13 +157,13 @@ scaled.sims<-lapply(seq_along(sim.bases),function(i){
 	   varWeightedEucledian(pca$x["sim",],proj[1,],vexp)
 	})
 })
-cidx<-which(names(sim.bases) %in% c('gh_ss_pp','gh_maf_pp'))
+cidx<-which(names(bases) %in% c('gh_ss_pp','gh_maf_pp','gh_ss_pw','gh_maf_pw'))
 unscaled.sims<-lapply(cidx,function(i){
 	message(sprintf("Processing %s",i))
         sapply(1:(sim.size/2),function(j){
            sim<-sims[[i]][j,]
-	   # key difference here is that projection needs to be unscaled
-	   bname<-sub('\\_pp$','',names(sim.bases)[i])
+	   	 		 # key difference here is that projection needs to be unscaled
+	   			 bname<-sub('\\_p[pw]$','',names(bases)[i])
            p<-sims[[bname]][j+(sim.size/2),]
            sbasis<-rbind(sim.bases[[i]],sim)
            pca<-prcomp(sbasis,center=TRUE,scale=FALSE)
@@ -132,11 +173,11 @@ unscaled.sims<-lapply(cidx,function(i){
            varWeightedEucledian(pca$x["sim",],proj[1,],vexp)
         })
 })
-names(unscaled.sims)<-c('unscaled_gh_ss','unscaled_gh_maf')
+names(unscaled.sims)<-paste('unscaled',c('gh_ss_pp','gh_ss_pw','gh_maf_pp','gh_maf_pw'),sep='_')
 all.sims<-c(scaled.sims,unscaled.sims)
 ci<-c(0.025,0.5,0.985)
 empirical_confidence_intervals<-lapply(all.sims,quantile,probs=ci)
-names(empirical_confidence_intervals)<-c(metrics,c('unscaled_gh_ss','unscaled_gh_maf'))
+names(empirical_confidence_intervals)<-c(metrics,paste('unscaled',names(bases)[cidx],sep='_'))
 # Need to do unscaled input - then plot barplots using code from analysis1.R
 save(all.sims,file="/scratch/ob219/as_basis/figure_data/analysis1_shared_simulation.RData")
 ## what about actual data ?
@@ -147,11 +188,11 @@ scaled.comparisons<-lapply(bases,function(b){
 })
 names(scaled.comparisons)<-metrics
 # for gamma hat have a look at the effect of just using non ppi weightings
-cidx<-which(names(bases) %in% c('gh_ss_pp','gh_maf_pp'))
+cidx<-which(names(bases) %in% c('gh_ss_pp','gh_maf_pp','gh_ss_pw','gh_maf_pw'))
 unscaled.comparisons<-lapply(cidx,function(i){
         ## need to replace aff.t1d with unscaled version
         b<-bases[[i]]
-        bname<-sub('\\_pp$','',names(bases)[i])
+      	bname<-sub('\\_p[pw]$','',names(bases)[i])
         t1d.gh<-DT[DT$disease=='aff.t1d',c(bname,'id'),with=FALSE]
         idx<-which(rownames(b)=='aff.t1d')
         ## get lors and make sure in the correct order
@@ -161,7 +202,11 @@ unscaled.comparisons<-lapply(cidx,function(i){
 })
 
 all.comparisons<-c(scaled.comparisons,unscaled.comparisons)
-title<-list(expression(hat(beta)),expression(Z),expression(hat(gamma[ss])),expression(hat(gamma[ss_ppi])),expression(hat(gamma[maf])),expression(hat(gamma[maf_ppi])),expression("Unscaled"~hat(gamma[ss_ppi])),expression("Unscaled"~hat(gamma[maf_ppi])))
+title<-list(expression(hat(beta)),expression(Z),
+expression(hat(gamma[ss])),expression(hat(gamma[ss_ppi])),expression(hat(gamma[ss_ppw])),
+expression(hat(gamma[maf])),expression(hat(gamma[maf_ppi])),expression(hat(gamma[maf_ppw])),
+expression("Non PPi Input Projection"~hat(gamma[ss_ppi])),expression("Non PPi Input Projection"~hat(gamma[ss_ppw])),
+expression("Non PPw Input Projection"~hat(gamma[maf_ppi])),expression("Non PPw Input Projection"~hat(gamma[maf_ppw])))
 plots<-lapply(seq_along(all.comparisons),function(i){
 	mci<-empirical_confidence_intervals[[i]]
         m<-names(all.comparisons)[i]
@@ -176,5 +221,5 @@ plots<-lapply(seq_along(all.comparisons),function(i){
 })
 
 pdf("/home/ob219/git/as_basis/pdf/analysis1_w_sim.pdf")
-multiplot(plotlist=plots,cols=3)
+multiplot(plotlist=plots,cols=4)
 dev.off()
