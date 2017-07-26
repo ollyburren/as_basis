@@ -12,7 +12,7 @@ source("./wakefield.R")
 sim.size<-200
 pi_1<-1e-4
 tmpfile<-"/scratch/ob219/as_basis/figure_data/analysis1_sims.RData"
-
+message(sprintf("Simulating %s",sim.size))
 # for ease of computation for simulation we will probably take forward gh_ss
 # for computation without including quantitative traits
 DT<-getGWASData()
@@ -32,35 +32,6 @@ DT[,gh_ss_pp:=gh_ss * pp]
 DT[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(or))]
 DT[,gh_maf_pp:=gh_maf * pp]
 
-## code to compute weightings across all diseases in basis
-##
-DT.no.affy<-DT[DT$disease != 'aff.t1d']
-DT.no.affy[,lp0:=log(1-approx.bf.z2(Z,maf,cases+controls,cases/(cases+controls),pi_1)),by=c('disease','ld.block')]
-## compute q_i across all diseases for i-th SNP in the basis by taking product over all diseases
-DT.no.affy[,q_i:=1-exp(sum(lp0)),by=id]
-## our empirical prior for these diseases is then
-emp<-mean(DT.no.affy[,list(mean_qi=mean(q_i)),by=id]$mean_qi)
-## prior odds
-po<-emp/(1-emp)
-## note that emp us for h1 that beta != 0 therefore we need to take reciprocal as equation assumes pi_0 - see notes
-po<-1/po
-DT.no.affy[,uABF:=po*(q_i/(1-q_i))]
-## add back in affy once we have q values
-DT<-rbind(DT.no.affy,DT[DT$disease == 'aff.t1d',],fill=TRUE)
-DT[,uABF:=max(uABF,na.rm=TRUE),by=id]
-
-## unfortunately this produces some very large BF somw of which are infinite. One way around this is to set really large and infinite BF
-## to something tractable.
-## I looked at numeric calculations and even with sticking to the log scale calculations will be infinite. For time being set uABF to max(uABF). This will
-## have the effect of averaging over SNPs in a region (even when one is a clear winner) but we may want this to offset any errors in our OR estimation
-## take the strategy that top 0.0001 are actually equal and assign this
-BIG<-quantile(DT[is.finite(DT$uABF),]$uABF,prob=0.9999)
-## BIG is still rather large but at least tractable
-DT[is.infinite(uABF) | uABF > BIG, uABF:=BIG]
-DT[,pwi:=computePWI(uABF,emp),by=c('disease','ld.block')]
-DT[,gh_ss_pw:=gh_ss * pwi]
-DT[,gh_maf_pw:=gh_maf * pwi]
-
 DT<-rbind(DT,createControl(DT))
 ## note that these files have previously been generated using ill.t1d - so data is already merged in
 snpStats.1kg.files<-list.files(path=file.path(DATA_DIR,'as_basis/support/simulations/1KGenome_snpStats'),pattern="*.RData",full.names=TRUE)
@@ -68,7 +39,8 @@ snpStats.1kg.files<-list.files(path=file.path(DATA_DIR,'as_basis/support/simulat
 sim.DT<-subset(DT,disease=='ill.t1d')
 sim.ss.total<-unique(sim.DT$total)
 sim.ss.prop<-unique(sim.DT$prop)
-metrics<-c('lor','Z','gh_ss','gh_ss_pp','gh_ss_pw','gh_maf','gh_maf_pp','gh_maf_pw')
+#metrics<-c('lor','Z','gh_ss','gh_ss_pp','gh_ss_pw','gh_maf','gh_maf_pp','gh_maf_pw')
+metrics<-c('lor','Z','gh_ss','gh_ss_pp','gh_maf','gh_maf_pp')
 if(!file.exists(tmpfile)){
 	sim.by.chr<-lapply(snpStats.1kg.files,function(f){
 	        message(sprintf("Processing %s",f))
@@ -81,13 +53,15 @@ if(!file.exists(tmpfile)){
 	        sm$map[idx,]$se_hat<-approxSE(sm$map[idx,]$maf,sim.ss.total)
 		# need to add this so that GWASsim shrinks beta towards zero when the posterior for a SNP to have a non zero beta is low
 		sm$map[,pp:=approx.bf.z2(z=Z,f=maf,N=sim.ss.total,s=sim.ss.prop,p=1e-4)]
-	        GWASsim(sm)
+	        GWASsim(sm,sim.size)
 	})
 	all.chr.sim<-do.call('rbind',sim.by.chr) %>% melt(.,id.vars=c('id')) %>% merge(.,sim.DT,by.x='id',by.y='id')
 	# compute posterior prob for inclusion
 	all.chr.sim[,ppi:=approx.bf.z(value,maf,sim.ss.total,sim.ss.prop,pi_1),by=c('ld.block','variable')]
 	## reconstitute standard error
 	all.chr.sim[,se:=lor/Z]
+	## some of these will be zero so Approximate
+	#all.chr.sim[is.nan(se),se:=approxSE(maf,sim.ss.total)]
 	all.chr.sim[,Z:=value]
 	all.chr.sim[,gh_ss:=gamma_hat_ss(Z,total)]
 	all.chr.sim[,gh_ss_pp:=gh_ss * ppi]
@@ -96,16 +70,6 @@ if(!file.exists(tmpfile)){
 	# examine what happens if we compute gh using maf ?
 	all.chr.sim[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(lor))]
 	all.chr.sim[,gh_maf_pp:=gh_maf * ppi]
-
-	# sort out pw metrics
-
-	## to do this properly we should probably recompute uABF for each simulation as
-	## it depends on the basis input - in this we are assuming that it is fixed for each
-	## simulation.
-
-	all.chr.sim[,pwi:=computePWI(uABF,emp),by=c('disease','ld.block')]
-  all.chr.sim[,gh_ss_pw:=gh_ss * pwi]
-	all.chr.sim[,gh_maf_pw:=gh_maf * pwi]
 
 	setnames(all.chr.sim,'variable','simno')
 	## create a bunch of simulations for each of the different metrics
@@ -129,7 +93,7 @@ if(!file.exists(tmpfile)){
 ## some simulated variants are zero (perhaps because lor = 0 remove these first - we assume that these are the same for all metrics
 tsims<-sims[[1]]
 tsims<-rowSums(apply(tsims,1,is.na))
-sim.snps<-names(tsims[tsims!=200])
+sim.snps<-names(tsims[tsims!=sim.size])
 sims<-lapply(sims,function(s){
 	s[,sim.snps]
 })
@@ -144,12 +108,12 @@ bases<-lapply(bases,function(b){
 #	identical(colnames(sim.bases[[i]]),colnames(sims[[i]]))
 #})
 ## simulate by computing pca with a simulation and then reprojecting another simulation
-scaled.sims<-lapply(seq_along(sim.bases),function(i){
-	message(sprintf("Processing %s",i))
+scaled.sims<-lapply(names(sims),function(n){
+	message(sprintf("Processing %s",n))
 	sapply(1:(sim.size/2),function(j){
-	   sim<-sims[[i]][j,]
-	   p<-sims[[i]][j+(sim.size/2),]
-	   sbasis<-rbind(sim.bases[[i]],sim)
+	   sim<-sims[[n]][j,]
+	   p<-sims[[n]][j+(sim.size/2),]
+	   sbasis<-rbind(sim.bases[[n]],sim)
 	   pca<-prcomp(sbasis,center=TRUE,scale=FALSE)
 	   ## project on another simulation
 	   proj<-predict(pca,t(p))
@@ -157,15 +121,25 @@ scaled.sims<-lapply(seq_along(sim.bases),function(i){
 	   varWeightedEucledian(pca$x["sim",],proj[1,],vexp)
 	})
 })
-cidx<-which(names(bases) %in% c('gh_ss_pp','gh_maf_pp','gh_ss_pw','gh_maf_pw'))
-unscaled.sims<-lapply(cidx,function(i){
-	message(sprintf("Processing %s",i))
+names(scaled.sims)<-names(sims)
+## load in PW simulations - these are generated by simulate_AI_weightings.R
+
+pw.dir<-'/home/ob219/scratch/as_basis/ai_sims/'
+pw.files <-list.files(path=pw.dir,pattern='*.RDS',full.names=TRUE)
+pw.sims<-do.call('rbind',lapply(pw.files,readRDS))
+
+scaled.sims$gh_ss_pw<-pw.sims[,'gh_ss_pw']
+scaled.sims$gh_maf_pw<-pw.sims[,'gh_maf_pw']
+
+
+unscaled.sims<-lapply(c('gh_ss_pp','gh_maf_pp'),function(sname){
+	message(sprintf("Processing %s",sname))
         sapply(1:(sim.size/2),function(j){
-           sim<-sims[[i]][j,]
+           sim<-sims[[sname]][j,]
 	   	 		 # key difference here is that projection needs to be unscaled
-	   			 bname<-sub('\\_p[pw]$','',names(bases)[i])
+	   			 bname<-sub('\\_p[pw]$','',sname)
            p<-sims[[bname]][j+(sim.size/2),]
-           sbasis<-rbind(sim.bases[[i]],sim)
+           sbasis<-rbind(sim.bases[[sname]],sim)
            pca<-prcomp(sbasis,center=TRUE,scale=FALSE)
            ## project on another simulation
            proj<-predict(pca,t(p))
@@ -173,20 +147,27 @@ unscaled.sims<-lapply(cidx,function(i){
            varWeightedEucledian(pca$x["sim",],proj[1,],vexp)
         })
 })
-names(unscaled.sims)<-paste('unscaled',c('gh_ss_pp','gh_ss_pw','gh_maf_pp','gh_maf_pw'),sep='_')
+names(unscaled.sims)<-paste('unscaled',c('gh_ss_pp','gh_maf_pp'),sep='_')
+
+unscaled.sims$unscaled_gh_ss_pw<-pw.sims[,'gh_ss']
+unscaled.sims$unscaled_gh_maf_pw<-pw.sims[,'gh_maf']
+
+
 all.sims<-c(scaled.sims,unscaled.sims)
 ci<-c(0.025,0.5,0.985)
 empirical_confidence_intervals<-lapply(all.sims,quantile,probs=ci)
-names(empirical_confidence_intervals)<-c(metrics,paste('unscaled',names(bases)[cidx],sep='_'))
+#names(empirical_confidence_intervals)<-c(metrics,paste('unscaled',names(bases)[cidx],sep='_'))
 # Need to do unscaled input - then plot barplots using code from analysis1.R
 save(all.sims,file="/scratch/ob219/as_basis/figure_data/analysis1_shared_simulation.RData")
+
+
+#(load("/scratch/ob219/as_basis/figure_data/analysis1_shared_simulation.RData"))
 ## what about actual data ?
 (load("/scratch/ob219/as_basis/figure_data/analysis1.RData"))
 scaled.comparisons<-lapply(bases,function(b){
         comp<-t1d.compare(b)
         with(comp,compareVarWEuc(pca,proj))
 })
-names(scaled.comparisons)<-metrics
 # for gamma hat have a look at the effect of just using non ppi weightings
 cidx<-which(names(bases) %in% c('gh_ss_pp','gh_maf_pp','gh_ss_pw','gh_maf_pw'))
 unscaled.comparisons<-lapply(cidx,function(i){
@@ -201,25 +182,35 @@ unscaled.comparisons<-lapply(cidx,function(i){
         with(comp,compareVarWEuc(pca,proj))
 })
 
+names(unscaled.comparisons)<-paste("unscaled",names(bases)[cidx],sep="_")
+
 all.comparisons<-c(scaled.comparisons,unscaled.comparisons)
-title<-list(expression(hat(beta)),expression(Z),
-expression(hat(gamma[ss])),expression(hat(gamma[ss_ppi])),expression(hat(gamma[ss_ppw])),
-expression(hat(gamma[maf])),expression(hat(gamma[maf_ppi])),expression(hat(gamma[maf_ppw])),
-expression("Non PPi Input Projection"~hat(gamma[ss_ppi])),expression("Non PPi Input Projection"~hat(gamma[ss_ppw])),
-expression("Non PPw Input Projection"~hat(gamma[maf_ppi])),expression("Non PPw Input Projection"~hat(gamma[maf_ppw])))
-plots<-lapply(seq_along(all.comparisons),function(i){
-	mci<-empirical_confidence_intervals[[i]]
-        m<-names(all.comparisons)[i]
-        dat<-all.comparisons[[i]]
+title<-list(lor=expression(hat(beta)),Z=expression(Z),
+gh_ss=expression(hat(gamma[ss])),gh_ss_pp=expression(hat(gamma[ss_ppi])),gh_ss_pw=expression(hat(gamma[ss_ppw])),
+gh_maf=expression(hat(gamma[maf])),gh_maf_pp=expression(hat(gamma[maf_ppi])),gh_maf_pw=expression(hat(gamma[maf_ppw])),
+unscaled_gh_ss_pp=expression("Unscaled"~hat(gamma[ss_ppi])),unscaled_gh_ss_pw=expression("Unscaled"~hat(gamma[ss_ppw])),
+unscaled_gh_maf_pp=expression("Unscaled"~hat(gamma[maf_ppi])),unscaled_gh_maf_pw=expression("Unscaled"~hat(gamma[maf_ppw])))
+plots<-lapply(names(all.comparisons),function(n){
+				mci<-empirical_confidence_intervals[[n]]
+        dat<-all.comparisons[[n]]
         dat<-dat[dat!=0]
         dat<-data.frame(disease=names(dat),distance=dat)
         ## hilight ill.t1d and control sets
         dat$hilight<-logical(length=nrow(dat))
         dat[dat$disease %in% c('ill.t1d','control'),]$hilight<-TRUE
         dat$disease<-factor(dat$disease,levels=dat[order(dat$distance),]$disease)
-        ggplot(dat,aes(x=disease,y=distance,fill=hilight,color=hilight)) + geom_bar(stat="identity") + theme_bw() + xlab("Trait") + ylab("Distance") + ggtitle(title[[i]]) + theme(axis.text.x=element_text(angle = -90, hjust = 0)) + scale_fill_manual(name="Bar",values=c('white','firebrick'),guide=FALSE) + scale_color_manual(name="Bar",values=c('black','black'),guide=FALSE) + geom_rect(xmin=0,xmax=length(levels(dat$disease)) + 0.5,ymin=mci[1],ymax=mci[3],alpha=0.1,color=NA,fill='grey90') + geom_hline(yintercept=mci[2],color='firebrick')
+        ggplot(dat,aes(x=disease,y=distance,fill=hilight,color=hilight)) +
+				geom_bar(stat="identity") + theme_bw() + xlab("Trait") + ylab("Distance") +
+				ggtitle(title[[n]]) + theme(axis.text.x=element_text(angle = -90, hjust = 0)) +
+				scale_fill_manual(name="Bar",values=c('white','firebrick'),guide=FALSE) +
+				scale_color_manual(name="Bar",values=c('black','black'),guide=FALSE) +
+				geom_rect(xmin=0,xmax=length(levels(dat$disease)) + 0.5,ymin=mci[1],ymax=mci[3],alpha=0.1,color=NA,fill='grey90') +
+				geom_hline(yintercept=mci[2],color='firebrick')
 })
 
-pdf("/home/ob219/git/as_basis/pdf/analysis1_w_sim.pdf")
-multiplot(plotlist=plots,cols=4)
-dev.off()
+#pdf("/home/ob219/git/as_basis/pdf/analysis1_w_sim.pdf",width=17,height=12)
+#pdf("/home/ob219/git/as_basis/pdf/analysis1_w_sim.pdf",paper="a4")
+multiplot(plotlist=plots,cols=3)
+# wysiwyg printing adjust on screen and then run
+dev.print(pdf,"/home/ob219/git/as_basis/pdf/analysis1_w_sim.pdf")
+#dev.off()
