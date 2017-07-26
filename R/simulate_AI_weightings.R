@@ -1,3 +1,24 @@
+
+
+## add argument processing
+
+library(optparse)
+
+
+option_list = list(
+        make_option(c("-o", "--out"), type="character", default=NULL,
+              help="output file", metavar="character"),
+        make_option(c("-s", "--sim_size"), type="integer", default=10,
+                    help="Number of simulations to run. Note number run is doubled", metavar="character")
+        )
+
+opt_parser = OptionParser(option_list=option_list);
+args = parse_args(opt_parser)
+if (is.null(args$out)){
+	print_help(opt_parser)
+	stop("At least one argument must be supplied (output file)", call.=FALSE)
+}
+
 library(data.table)
 library(snpStats)
 library(GenomicRanges)
@@ -9,13 +30,15 @@ library(magrittr)
 setwd("/home/ob219/git/as_basis/R/")
 source("./central_functions.R")
 source("./wakefield.R")
-sim.size<-10
+
+sim.size<-args$sim_size *2
 pi_1<-1e-4
-tmpfile<-"/scratch/ob219/as_basis/figure_data/test_analysis1_sims.RData"
+outfile<-args$out
 metrics<-c('gh_ss_pw','gh_maf_pw')
 
 # for ease of computation for simulation we will probably take forward gh_ss
-# for computation without including quantitative traits
+# for computation
+#without including quantitative traits
 DT<-getGWASData()
 ## remove quantitative traits as well as meta.t1d
 QT<-c('eosinophil','lymphocyte','myeloid','wbc')
@@ -122,3 +145,5 @@ sim.ss.prop<-unique(sim.DT$prop)
 				})
 		}))
 }))
+message(sprintf("Writing output to %s",outfile))
+saveRDS(matched.sims,file=outfile)

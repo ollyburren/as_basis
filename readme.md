@@ -16,6 +16,10 @@ Some diseases are likely polygenic but rare. This makes convential GWAS approach
 
 - empirical_prior.R - Estimate q for each SNP which is taken from the posterior probability of inclusion for any trait.
 
+- computeBetaCovariates.R - This is to speed up simulations for examining how sample size effects things. We can compute beta covariates and then rescale to simulate different sample sizes in the projections.
+
+- simulate_AI_weightings.R - This computes simulations for overall weightings. This is a considerably more complicated simulation as weightings have to be recalculated for each basis and projection simulation pair.
+
 ## R/figures
 
 This dir contains code for creating figures and misc analysis
@@ -28,7 +32,6 @@ This dir contains code for creating figures and misc analysis
 
 - analysis2_w_sim.R - This is the same as above but we simulate under no sharing - we hope that for good metrics discovered above there is no overlap between no sharing and sharing confidence intervals.
 
-- computeBetaCovariates.R - This is to speed up simulations for examining how sample size effects things. We can compute beta covariates and then rescale to simulate different sample sizes in the projections.
 
 - analysis3_w_sim.R - Here we examine what happens as we alter sample size for projections - this code runs on the hpc it uses betaCovariates computed above.
 
