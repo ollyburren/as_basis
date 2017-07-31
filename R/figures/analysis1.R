@@ -77,14 +77,15 @@ unscaled.comparisons<-lapply(cidx,function(i){
 	b<-bases[[i]]
 	bname<-sub('\\_p[pw]$','',names(bases)[i])
 	print(names(bases[i]))
-	t1d.gh<-DT[DT$disease=='aff.t1d',c(bname,'id'),with=FALSE]
+	#t1d.gh<-DT[DT$disease=='aff.t1d',c(bname,'id'),with=FALSE]
 	idx<-which(rownames(b)=='aff.t1d')
 	## get lors and make sure in the correct order
-	b[idx,]<-t1d.gh[match(t1d.gh$id,colnames(b)),][[bname]]
+	b[idx,]<-bases[[bname]][idx,]
+	#b[idx,]<-t1d.gh[match(t1d.gh$id,colnames(b)),][[bname]]
 	comp<-t1d.compare(b)
         with(comp,compareVarWEuc(pca,proj))
 })
-names(unscaled.comparisons)<-paste('unscaled',c('gh_ss_pp','gh_ss_pw','gh_maf_pp','gh_maf_pw'),sep='_')
+names(unscaled.comparisons)<-paste('unscaled',names(bases)[cidx],sep='_')
 
 all.comparisons<-c(scaled.comparisons,unscaled.comparisons)
 title<-list(expression(hat(beta)),expression(Z),
@@ -103,6 +104,6 @@ plots<-lapply(seq_along(all.comparisons),function(i){
 	dat$disease<-factor(dat$disease,levels=dat[order(dat$distance),]$disease)
 	ggplot(dat,aes(x=disease,y=distance,fill=hilight,color=hilight)) + geom_bar(stat="identity") + theme_bw() + xlab("Trait") + ylab("Distance") + ggtitle(title[[i]]) + theme(axis.text.x=element_text(angle = -90, hjust = 0)) + scale_fill_manual(name="Bar",values=c('white','firebrick'),guide=FALSE) + scale_color_manual(name="Bar",values=c('black','black'),guide=FALSE)
 })
-pdf("/home/ob219/git/as_basis/pdf/analysis1.pdf")
+#pdf("/home/ob219/git/as_basis/pdf/analysis1.pdf")
 multiplot(plotlist=plots,cols=4)
-dev.off()
+#dev.off()
