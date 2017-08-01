@@ -60,3 +60,13 @@ This dir contains code for creating figures and misc analysis
 - analysis3_w_sim.R - Here we examine what happens as we alter sample size for projections - this code runs on the hpc it uses betaCovariates computed above.
 
 `Rscript --vanilla analysis3_w_sim.R -o /tmp/sample_size/3_3.RData -c 3000  -t 3000`
+
+## Notes
+
+Have begun to refactor code so that plotting is separated from the simulation to get final plots (including simulation of affy vs ill and affy (expectation of beta 0) vs ill).
+
+1. *simulate_AI_weightings_aff_ill.R* - Simulate aff vs ill using AI based weighting scheme. Run on the queue.
+2. *simulate_AI_weightings_aff_ill_null.R* Simulate aff E(beta)=0 vs ill using AI based weighting scheme. Run on the queue.
+3. *simulate_aff_ill.R* Simulate other metrics aff vs ill.
+4. *simulate_aff_ill_null.R* Simulate other metrics aff E(beta)=0 vs ill.
+5. *aff_ill_w_sim.R* Plot the results of this.
