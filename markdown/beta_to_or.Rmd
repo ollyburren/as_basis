@@ -1,5 +1,5 @@
 ---
-title: "Converting linear regression to a logistic regression using only summary stats"
+title: "Converting regression parameters from linear logistic models using only summary statistics"
 output:
   pdf_document: default
   html_notebook: default
@@ -8,7 +8,7 @@ output:
 
 #Introduction
 
-Many traits that we might like to include in the basis are continuous and therefore we only have access to summary statistics for a linear regression of the form $$ Y = \alpha + \beta X + \epsilon$$
+Many traits that we might like to include in the basis are continuous and therefore we only have access to published summary statistics for a linear regression of the form $$ Y = \alpha + \beta X + \epsilon$$.
 
 We therefore need a method to convert linear regression summary statistics from these studies to their logistic regression counterparts including log(OR) or $\beta$ coefficients and it's standard error - $\sigma_{\beta}$. The code below first simulates some continuous and allelic data for a single biallelic SNP with various known parameters. We then fit a linear model and use this to estimate parameters. Next we dichotomise the trait by grouping those individuals whom $Y > \bar{y}$ and then fit a logistic model to estimate $\beta$ and $\sigma_{\beta}$. 
 
@@ -86,23 +86,39 @@ YbarHat<-beta * XbarHat
 
 Actual sample $\bar{y}$ is `r signif(mean(Y),digits=2)` our estimate is `r YbarHat`.
 
+For interest want to check that $$\bar{y} = E(y) = \sum_i E(Y|X_i)P(X_i)$$ i.e
+$$\bar{y} = \frac{\beta(N_{\text{het}} + 2N_{\text{hom}})}{N}$$ 
+```{r}
+n.wt<-wtscore(N,raf,1)
+n.het<-hetscore(N,raf,1)
+n.hom<-homscore(N,raf,1)
+estYbar<-(beta * (n.het + (2 * n.hom)))/N
+```
+Using this method the estimated value of $\bar{y}$ is `r signif(estYbar,digits=2)`.
+
+
 Next we want to estimate the sum of squares for X (SSX) or $\sum_i (X_i-\bar{x})^2$
 
 ```{r}
-n.wt<-wtscore(N,raf,1)
 SSX.wt<-sum(n.wt * XbarHat^2)
-n.het<-hetscore(N,raf,1)
 SSX.het<-sum((rep(1,n.het)-rep(XbarHat,n.het))^2)
-n.hom<-homscore(N,raf,1)
 SSX.hom<-sum((rep(2,n.hom)-rep(XbarHat,n.hom))^2)
 SSXHat=SSX.wt + SSX.het + SSX.hom
 ```
 Actual sample SSX is `r sum((X-mean(X))^2)` estimate is `r SSXHat`. Looking good !
 
+An alternative method other than brute force for computing SSX is derived from the fact that $$SSX = (N-1)\sigma_{X}^2$$ which simplifies to $$SSX = 2\hat{m}(N-1)(1-\hat{m})$$
+Let's check this result.
+```{r}
+estSSXHat = 2 * maf * (N-1) * (1-maf)
+```
+The estimate of SSX this way is `r estSSXHat`. Slight difference between brute force, but that could be numerical errors in brute force method.
+
+
 Next compute $\hat{\sigma_{\epsilon}}$ that is our estimate of the standard error for $\epsilon$. We compute this using the the given value of $\sigma_{\beta}$. As we know that $\sigma_{\epsilon} = \sigma_{\beta} \times \sqrt{\sum_i (X_i-\bar{x})^2}$. We have estimated SSX above and so have all we need.
 
 ```{r}
-se.eHat<-beta.se * sqrt(SSXHat)
+se.eHat<-beta.se * sqrt(estSSXHat)
 ```
 
 The actual value of $\sigma_{\epsilon}$ is `r signif(se.e,digits=2)` our estimated value is `r signif(se.eHat,digits=2)`. Looking good !
