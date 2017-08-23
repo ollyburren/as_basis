@@ -61,6 +61,7 @@ threshBeta<-function(thresh,N,b,seb,m){
 ## compute the stderr of thresh beta
 threshSigmaBeta<-function(thresh,n1,n0,m,tb){
   ## number above thresh
+  N<-n0+n1
   ploidy<-2 # given current framework this is constant
   a<-n0 * (1-m)
   b<-n0 * m
@@ -72,9 +73,9 @@ threshSigmaBeta<-function(thresh,n1,n0,m,tb){
   var_maf * var_ss * var_ploidy
 }
 
-convertBetaToOR<-function(thresh,X,N,b,seb,m){
+convertBetaToOR<-function(thresh,N,b,seb,m){
   if (missing(thresh))
-    thresh <- y_bar(b,N,M)
+    thresh <- y_bar(b,N,m)
   tb<-threshBeta(thresh,N,b,seb,m)
   x_0<-threshP(thresh,0,N,b,seb,m) * n.wt(N,m)
   x_1<-threshP(thresh,1,N,b,seb,m) * n.het(N,m)
@@ -86,3 +87,11 @@ convertBetaToOR<-function(thresh,X,N,b,seb,m){
   P<-2*(pnorm(Z,lower.tail = FALSE))
   list(OR=exp(tb),beta=tb,se.beta=tsb,thresh=thresh,n0=n0,n1=n1)
 }
+
+## test to see if it works
+sN<-10000
+smaf<-0.1
+sbeta<-0.4
+sp.val<-5e-8
+sbeta.se<-sbeta/abs(qnorm(sp.val/2))
+convertBetaToOR(N=sN,b=sbeta,seb=sbeta.se,m=smaf)
