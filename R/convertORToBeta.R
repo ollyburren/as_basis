@@ -63,10 +63,10 @@ threshSigmaBeta<-function(thresh,n1,n0,m,tb){
   ## number above thresh
   N<-n0+n1
   ploidy<-2 # given current framework this is constant
-  a<-n0 * (1-m)
-  b<-n0 * m
-  c<-(n1*a)/(a+(b*exp(tb)))
-  d<-(n1*b)/(a+(b*exp(tb)))
+  a<-(n0 * (1-m))/N
+  b<-(n0 * m)/N
+  c<-((n1*a)/(a+(b*exp(tb))))/N
+  d<-((n1*b)/(a+(b*exp(tb))))/N
   var_maf<-sqrt(rowSums(do.call('cbind',lapply(list(a,b,c,d),function(fi) 1/fi))))
   var_ss<-sqrt(1/N)
   var_ploidy<-sqrt(1/ploidy)
@@ -85,7 +85,7 @@ convertBetaToOR<-function(thresh,N,b,seb,m){
   tsb<-threshSigmaBeta(thresh,n1,n0,m,tb)
   Z<-tb/tsb
   P<-2*(pnorm(Z,lower.tail = FALSE))
-  list(OR=exp(tb),beta=tb,se.beta=tsb,thresh=thresh,n0=n0,n1=n1)
+  list(OR=exp(tb),beta=tb,se.beta=tsb,P=P,Z=Z,thresh=thresh,n0=n0,n1=n1)
 }
 
 ## test to see if it works
