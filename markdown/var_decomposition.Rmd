@@ -1,0 +1,84 @@
+---
+title: "Decomposition of SE log(OR)"
+output:
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r global_vars}
+library(data.table)
+n.snps=10000
+n.cases=3999
+n.controls=3983
+data.dir='/Users/oliver/hpc_scratch/'
+
+```
+
+
+This describes a problem that I have been having decomposing the standard error of a $log(OR)$ or $\beta$. First load in a toy dataset this consists of data for a sub cohort of T1D analysis typed on the illumnia genotyping platform incorporating `r n.controls` controls and `r n.cases` cases where we have randomly sampled summary statistics for `r n.snps` snps. 
+
+## Housekeeping
+
+To get this to run within RStudio locally I mount data in `/scratch/ob219/as_basis` to my local filesystem `sshfs hpc:/scratch/ob219/ /Users/oliver/hpc_scratch/`.  Sample `r n.snps` snps from the dataset and then compute $\hat{\beta} = \log(OR)$ and $SE(\hat{\beta}) = \frac{\hat{\beta}}{Z}$ 
+
+```{r sample_ds, include=FALSE}
+#loads into ill.t1d
+load(file.path(data.dir,'as_basis/tmp/ill.t1d.RData'))
+## issue that needs addressing is that MAF is zero for some SNPs - working on this but don't include these in sample
+## sample
+t1d.ill<-subset(t1d.ill,maf!=0)
+devnull<-toy.DT<-t1d.ill[sample(.N,n.snps)]
+## compute beta_hat estimate of the effect size
+devnull<-toy.DT[,beta_hat:=log(or)]
+## compute estimate of standard error
+devnull<-toy.DT[,se_beta_hat:=log(or)/Z]
+```
+
+
+
+The variance of $SE(\hat{\beta})$ can be a Gaussian approximation to the log likelihood $S = \frac{1}{D_1} + \frac{1}{D_0} + \frac{1}{H_1} + \frac{1}{H_0}$ e.g.($D_1=p(Disease|Allele_{1}) * N$,$H_0=p(Control|Allele_{0}) * N$ etc.) where $N$ is total cohort size, thus $SE(\hat{\beta}) = \sqrt{\frac{1}{NC}}   \sqrt{\frac{1}{p(D_1)} + \frac{1}{p(D_0)} + \frac{1}{p(H_1)} + \frac{1}{p(H_0)}}$ where $C$ is the ploidy of the organism. We can use a reference dataset to attempt to compute probabilities $p(D_1),p(D_0)p(H_1)$ and $p(H_0)$ given the odds ratio or $\exp(\hat{\beta})$. We need to take care though as true $SE(\hat{\beta})$ has been computed using genotype counts and therefore we need to take into account that each subject has 2 genotype calls.
+
+```{r compute_cond_prob}
+ca<-function(n0,f){
+    n0*(1-f)
+}
+
+cb<-function(n0,f){
+    n0*f
+}
+
+cc<-function(n1,a,b,theta){
+    (n1*a)/(a+(b*theta))
+}
+
+cd<-function(n1,a,b,theta){
+    (n1*b)/(a+(b*theta))
+}
+
+getGTprob<-function(n0,n1,f,theta,ploidy){
+    n<-(n1+n0)
+    a<-ca(n0,f)
+    b<-cb(n0,f)
+    c<-cc(n1,a,b,theta)
+    d<-cd(n1,a,b,theta)
+    return(list(a=a/n,b=b/n,c=c/n,d=d/n))
+}
+
+devnull<-toy.DT[,c('H0','H1','D0','D1'):=getGTprob(n.cases,n.controls,maf,or),with=FALSE]
+devnull<-toy.DT[,'SE.maf':=sqrt(1/H0 + 1/H1 + 1/D0 + 1/D1),with=FALSE]
+```
+
+We can then use this information to attempt to back compute the $SE(\hat{\beta})_{allelecount}  =  \frac{SE(\hat{\beta})}{SE(\hat{\beta})_{MAF}}$ 
+```{r}
+devnull<-toy.DT[,'SE.sample.size':=se_beta_hat/SE.maf,with=FALSE]
+```
+From this try to estimate allele count which should be $\frac{1}{(SE(\hat{\beta})_{allele.count})^2}$ To get sample size we need to divide by 2.
+
+```{r}
+## estimated sample size 
+est.allele.count<-1/toy.DT$SE.sample.size^2
+est.sample.size<-est.allele.count/2
+summary(est.sample.size)
+```
+
+For the project we are interested in scaling Z which we do by $Z * \sqrt{\frac{1}{2N}}$

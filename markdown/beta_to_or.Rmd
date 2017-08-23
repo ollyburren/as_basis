@@ -1,5 +1,5 @@
 ---
-title: "Converting regression parameters from linear logistic models using only summary statistics"
+title: "Converting regression parameters from linear to logistic models using only summary statistics"
 output:
   pdf_document: default
   html_notebook: default

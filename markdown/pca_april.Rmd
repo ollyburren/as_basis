@@ -1,0 +1,180 @@
+---
+title: "Adventures in PCA April"
+author: "Olly Burren"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: 
+    fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+data.dir<-'/Users/oliver/DATA/AS_BASIS'
+library(ggplot2)
+```
+
+## PCA
+
+I have used R scripts in R dir to munge data and the convert into a suitable matrix for EDA using PCA based techniques.
+
+This markdown is for exploring whether by using AI + ill.t1d cohort to create a basis we can then project aff.t1d on to this and see whether PC loadings are similar to ill.t1d.  In pca.Rmd we examined three scenarios, it looks as if the most promising is using approximate Bayes factors to weight the $\log(\text{(OR)})$.
+
+
+## Preamble
+
+Load in precomputed matrices with certain traits removed (as agreed with CW). Also setup helper functions for plotting etc.
+```{r load_data, echo=FALSE, cache = FALSE, result='hide'}
+#beta - log(or)
+(load(file.path(data.dir,'no_p_pp_matrix.RData')))
+(load(file.path(data.dir,'no_p_lor_matrix.RData')))
+no.pp<-no.pp[!rownames(no.pp) %in% c('SCZ','JIA_sys','T2D','IBD'),]
+computePCA<-function(DT,rm.cols,scale){
+    ## remove columns we don't want
+    f<-DT[-which(rownames(DT) %in% rm.cols ),]
+    ## We do mean centre as we expect that across all 350k snps that the mean is zero 
+    prcomp(f,center=TRUE,scale=scale)
+}
+
+
+plotAllProjection<-function(proj.load,pca,cf.1,cf.2){
+    tmp<-rbind(proj.load,pca$x)
+    mall<-melt(tmp)
+    names(mall)<-c('disease','pc','projection')
+    # reorder by PC_1
+    reo<-mall[mall$pc=='PC1',]
+    mall$disease<-factor(mall$disease,levels = as.character(reo[order(reo$projection),]$disease))
+    ## add a category so can see the projections we are comparing
+    mall$cat<-'other'
+    mall[mall$disease==cf.1,]$cat<-cf.1
+    mall[mall$disease==cf.2,]$cat<-cf.2
+    ggplot(mall,aes(x=disease,y=projection,fill=cat)) + geom_bar(stat="identity") + 
+    facet_wrap(~pc) + theme_bw() + theme(axis.text.x=element_text(angle = -90, hjust = 0)) 
+}
+
+altPlotAllProjection<-function(proj.load,pca,cf.1,cf.2,spec.comp=FALSE){
+    tmp<-rbind(proj.load,pca$x)
+    mall<-melt(tmp)
+    names(mall)<-c('disease','pc','projection')
+     if(spec.comp){
+        mall<-mall[mall$disease %in% c('control',cf.1,cf.2),]
+    }
+    reo<-mall[mall$pc=='PC1',]
+    mall$disease<-factor(mall$disease,levels = as.character(reo[order(reo$projection),]$disease))
+    ## add a category so can see the projection we are comparing
+    mall$cat<-'other'
+    mall[mall$disease==cf.1,]$cat<-cf.1
+    mall[mall$disease==cf.2,]$cat<-cf.2
+    mall[mall$disease=='control',]$cat<-'control'
+   
+    vexp<-summary(pca)$importance[2,]
+    mall$var.exp<-vexp[mall$pc]
+    
+    mall$label<-sprintf("%s (%.2f)",mall$pc,mall$var.exp)
+    mall$label<-factor(mall$label,levels=unique(mall[order(mall$pc),]$label))
+    cols<-c(cf.1='green',cf.2='blue',"control"='grey','other'='orange')
+    names(cols)[1:2]<-c(cf.1,cf.2)
+    ggplot(mall,aes(x=label,y=projection,group=disease,color=cat)) + geom_point() + geom_path()  + theme_bw() + theme(axis.text.x=element_text(angle = 90, vjust = 0.5)) + scale_color_manual(values=cols)
+}
+
+pc2.plot<-function(pc,proj.pc){
+    act.pc<-pc$x
+    all.pc<-rbind(pc$x,proj.pc)
+    DT<-data.table(all.pc[,1:2])
+    DT$disease<-rownames(all.pc)
+    DT$predicted=FALSE
+    DT[nrow(all.pc),]$predicted<-TRUE
+    ggplot(DT,aes(x=PC1,y=PC2,label=disease,color=predicted)) + geom_point() + geom_text(angle = 45) + theme_bw()
+}
+
+nEucledian<-function(simLoad,actLoad,vexp){
+    sqrt((actLoad-simLoad)^2 %*% vexp)
+}
+
+#pc<-pp.pca
+#proj.pc<-pp.pca.proj.t1d.1
+#cvar<-'ill.t1d'
+
+computeVarWEuc<-function(pc,proj.pc,cvar){
+    act.pc<-pc$x
+    all.pc<-rbind(pc$x,proj.pc)
+    ## what is the variance explained
+    vexp<-summary(pc)$importance[2,]
+    idx<-which(rownames(all.pc)==cvar)
+    apply(all.pc,1,nEucledian,all.pc[idx,],vexp)
+}
+
+```
+
+## 3. log(OR) weighted by posterior probability.
+
+Using HapMap LD map we divide genome into 1cM chunks. For each of these chunks we compute approximate Bayes factors. Given a suitable prior $10^-4$ we can compute posterior probabilities for $P(\text{SNP Causal} | \text{Data})$ where Data is the set of univariate $p$ values. We then use this to weight odds ratios and recompute principal components. 
+
+```{r project_pp, echo=FALSE,results='markup'}
+## first check to see that none of the results are null these will mess things up
+#name.keep<-which(!names(no.pp) %in% names(no.pp)[unique(do.call('c',apply(no.pp,1,function(x) which(is.na(x)))))])
+#no.pp<-no.pp[,name.keep]
+#no.lor<-no.lor[,name.keep]
+pp.pca<-computePCA(no.pp,c('meta.t1d','aff.t1d','JIA_nosys'),scale=FALSE)
+pp.pca.proj.t1d.1<-predict(pp.pca,no.pp['aff.t1d',])
+pp.pca.proj.jia.1<-predict(pp.pca,no.pp['JIA_nosys',])
+pp.cf<-rbind(pp.pca.proj.t1d.1,pp.pca$x["ill.t1d",],pp.pca$x["control",])
+rownames(pp.cf)<-paste('pp',c('aff.t1d','ill.t1d','control'),sep='_')
+pp.cf
+```
+
+```{r post_prob_projections_bar, echo=TRUE, fig.cap="Barplot comparison of posterior probability weighted log(OR) principal components",fig.pos='ht',eval=FALSE}
+    plotAllProjection(pp.pca.proj.t1d.1,pp.pca,'aff.t1d','ill.t1d')
+```
+```{r post_prob_projections_line_all, echo=TRUE, fig.cap="Lineplot comparison of all posterior probability weighted log(OR) principal components",fig.pos='ht',eval=FALSE}
+    altPlotAllProjection(pp.pca.proj.t1d.1,pp.pca,'aff.t1d','ill.t1d')
+```
+```{r post_prob_projections_line_spec, echo=TRUE, fig.cap="Lineplot comparison of posterior probability weighted log(OR) aff.t1d,ill.t1d and control principal components",fig.pos='ht'}
+     altPlotAllProjection(pp.pca.proj.t1d.1,pp.pca,'aff.t1d','ill.t1d',TRUE)
+```
+```{r post_prob_projections_pc, echo=TRUE, fig.cap="posterior probability weighted log(OR) PC1 and PC2 for all traits",fig.pos='ht'}
+    pc2.plot(pp.pca,pp.pca.proj.t1d.1)
+```
+
+## PCA is generated based on log(OR) based on pp but what happens if **aff.t1d** input is not weighted. Note that the input matrix is a little different as some SNPs availible in pp matrix are not avail in the log(OR) column so slightly different output.
+
+```{r project_pp_no_weight_aff.t1d, echo=FALSE,results='markup'}
+#note use no.pp here for projection
+no.lor.aff.t1d<-no.lor['aff.t1d',]
+#there is not perfect agreement between SNP lists
+no.lor.jia<-no.lor['JIA_nosys',]
+#cw.pp.pca<-computePC A(cw.no.pp,c('meta.t1d','aff.t1d'),scale=FALSE)
+cw.pp.pca.proj.t1d.1<-predict(pp.pca,no.lor.aff.t1d)
+cw.pp.pca.proj.jia<-predict(pp.pca,no.lor.jia)
+cw.pp.cf<-rbind(cw.pp.pca.proj.t1d.1,pp.pca$x["ill.t1d",],pp.pca$x["control",])
+rownames(cw.pp.cf)<-paste('cw.pp',c('aff.t1d','ill.t1d','control'),sep='_')
+cw.pp.cf
+```
+
+
+```{r cw_postprob_projections_bar, echo=TRUE, fig.cap="Barplot comparison of posterior probability weighted log(OR) principal components",fig.pos='ht',eval=FALSE}
+    plotAllProjection(pp.pca.proj.t1d.1,pp.pca,'aff.t1d','ill.t1d')
+```
+```{r cw_postprob_projections_line_all, echo=TRUE, fig.cap="Lineplot comparison of all posterior probability weighted log(OR) principal components",fig.pos='ht',eval=FALSE}
+    altPlotAllProjection(cw.pp.pca.proj.t1d.1,pp.pca,'aff.t1d','ill.t1d')
+```
+```{r cw_postprob_projections_line_spec, echo=TRUE, fig.cap="Lineplot comparison of posterior probability weighted log(OR) aff.t1d,ill.t1d and control principal components",fig.pos='ht'}
+     altPlotAllProjection(cw.pp.pca.proj.t1d.1,pp.pca,'aff.t1d','ill.t1d',TRUE)
+```
+```{r cw_postprob_projections_pc, echo=TRUE, fig.cap="posterior probability weighted log(OR) PC1 and PC2 for all traits",fig.pos='ht'}
+    pc2.plot(pp.pca,cw.pp.pca.proj.t1d.1)
+```
+
+# compute overall variance weighted distances across all PC 
+```{r overall_var_differences}
+sc.euc<-computeVarWEuc(pp.pca,pp.pca.proj.t1d.1,'aff.t1d')
+no.sc.euc<-computeVarWEuc(pp.pca,cw.pp.pca.proj.t1d.1,'aff.t1d')
+DT<-data.table(disease<-names(sc.euc),scaled=sc.euc,non.scaled=no.sc.euc)
+ggplot(DT,aes(x=scaled,y=non.scaled)) + geom_point() + geom_abline(slope = 1,color="red") + theme_bw() + geom_text(aes(label=disease))
+```
+```{r overall_var_differences_jia}
+sc.euc<-computeVarWEuc(pp.pca,pp.pca.proj.jia.1,'JIA_nosys')
+no.sc.euc<-computeVarWEuc(pp.pca,cw.pp.pca.proj.jia,'JIA_nosys')
+DT<-data.table(disease<-names(sc.euc),scaled=sc.euc,non.scaled=no.sc.euc)
+ggplot(DT,aes(x=scaled,y=non.scaled)) + geom_point() + geom_abline(slope = 1,color="red") + theme_bw() + geom_text(aes(label=disease))
+```

@@ -1,0 +1,167 @@
+---
+title: "Scaling to include quantitative traits"
+author: "Olly Burren"
+date: '`r Sys.Date()`'
+output:
+  html_document: default
+  pdf_document:
+    fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+data.dir<-'/Users/oliver/DATA/AS_BASIS'
+library(ggplot2)
+```
+
+## PCA
+
+I have used R scripts in R dir to munge data and the convert into a suitable matrix for EDA using PCA based techniques.
+
+1.  $\log(\text{(OR)})$
+2.  $\log(\text{(OR)}) \times Posterior Probability$
+3.  $Z$ Score
+4.  $Z \times Posterior Probability$
+5.  $Z \times \sqrt{\frac{1}{n}}$
+6.  $Z \times \sqrt{\frac{1}{n}} \times PP$
+
+The motivation behind this approach is to create a 'Basis' which we can then project a test dataset onto to gain insights into that dataset. For this test we leverage the fact that our T1D dataset is actually comprised of two cohorts aff.t1d and ill.t1d. We will use ill.t1d to compute the basis and then project aff.t1d. Using a weighted eucledian distance $d = \sqrt{\sum^{n}_{i=1} (x^{d_{1}}_{i} - x^{d_{2}}_{i})^2 \times Var_{i}}$ Where $i$ is the $i^{th}$ Principal component loading and $Var_{i}$ is the variance explained by that Principal component. In this specific case $d_{1}$ would be the loadings on aff.t1d. Note that we use sample numbers for these taken from Nick Cooper's thesis https://drive.google.com/drive/folders/0B2uxQDg1624kYjNfVmJaV0hiaEE
+
+## Preamble
+
+Load in precomputed matrices with certain traits removed (as agreed with CW). Also setup helper functions for plotting etc.
+```{r load_data, echo=TRUE, cache = FALSE, result='hide'}
+#beta - log(or)
+load(file.path(data.dir,'no_p_pp_matrix.RData'))
+load(file.path(data.dir,'no_p_lor_matrix.RData'))
+load(file.path(data.dir,'no_p_Z_matrix.RData'))
+load(file.path(data.dir,'no_p_pZ_matrix.RData'))
+load(file.path(data.dir,'no_p_Zadj_matrix.RData'))
+load(file.path(data.dir,'no_p_pZadj_matrix.RData'))
+no.pp<-no.pp[!rownames(no.pp) %in% c('SCZ','JIA_sys','T2D','IBD'),]
+computePCA<-function(DT,rm.cols,scale){
+    ## remove columns we don't want
+    f<-DT[-which(rownames(DT) %in% rm.cols ),]
+    ## We do mean centre as we expect that across all 350k snps that the mean is zero 
+    prcomp(f,center=TRUE,scale=scale)
+}
+
+
+#pc<-pp.pca
+#proj.pc<-pp.pca.proj.t1d.1
+#cvar<-'ill.t1d'
+
+computeVarWEuc<-function(pc,proj.pc,cvar){
+    act.pc<-pc$x
+    all.pc<-rbind(pc$x,proj.pc)
+    ## what is the variance explained
+    vexp<-summary(pc)$importance[2,]
+    idx<-which(rownames(all.pc)==cvar)
+    apply(all.pc,1,nEucledian,all.pc[idx,],vexp)
+}
+
+nEucledian<-function(simLoad,actLoad,vexp){
+    sqrt((actLoad-simLoad)^2 %*% vexp)
+}
+
+plotEuc<-function(MAT,remove.disease){
+    pp.pca<-computePCA(MAT,remove.disease,scale=FALSE)
+    pp.pca.proj.t1d.1<-predict(pp.pca,MAT['aff.t1d',])
+    sc.euc<-computeVarWEuc(pp.pca,pp.pca.proj.t1d.1,'aff.t1d')
+    #no.sc.euc<-computeVarWEuc(pp.pca,cw.pp.pca.proj.t1d.1,'aff.t1d')
+    DT<-data.table(disease=names(sc.euc),scaled=sc.euc)
+    DT$disease<-factor(DT$disease,levels = DT[order(DT$scaled),]$disease)
+    ggplot(DT,aes(x=disease,y=scaled)) + geom_bar(stat="identity") + theme_bw() + theme(axis.text.x=element_text(angle = -90, hjust = 0))
+}
+
+
+
+computeVarWEuc<-function(pc,proj.pc,cvar){
+    act.pc<-pc$x
+    all.pc<-rbind(pc$x,proj.pc)
+    ## what is the variance explained
+    vexp<-summary(pc)$importance[2,]
+    idx<-which(rownames(all.pc)==cvar)
+    apply(all.pc,1,nEucledian,all.pc[idx,],vexp)
+}
+remove.disease<-c('meta.t1d','aff.t1d','JIA_nosys')
+remove.disease.qtl<-c(remove.disease,'eosinophil','lymphocyte','myeloid','wbc')
+```
+
+## log(OR) - this is without any scaling or transformation
+
+## No QTL
+```{r project_log_or_no_qtl, echo=FALSE,results='markup'}
+    plotEuc(no.lor,remove.disease.qtl)
+```
+
+## QTL
+```{r project_log_or, echo=FALSE,results='markup'}
+    plotEuc(no.lor,remove.disease)
+```
+
+Looks a bit rubbish
+
+## $\log(OR) \times PP$
+
+## No QTL
+```{r project_pp_x_lor_noqtl, echo=FALSE,results='markup'}
+    plotEuc(no.pp,remove.disease.qtl)
+```
+
+## QTL
+```{r project_pp_x_lor, echo=FALSE,results='markup'}
+    plotEuc(no.pp,remove.disease)
+```
+
+Looks better and ill.t1d looks to be the closest to aff.t1d which is what we expect.
+
+## $Z$
+
+## No QTL
+```{r project_Z_no_qtl, echo=FALSE,results='markup'}
+    plotEuc(no.Z,remove.disease.qtl)
+```
+
+## QTL
+```{r project_Z, echo=FALSE,results='markup'}
+    plotEuc(no.Z,remove.disease)
+```
+aff.t1d is closest to control 
+
+## $Z \times PP$
+
+## No QTL
+```{r project_pZ_no_qtl, echo=FALSE,results='markup'}
+    plotEuc(no.pZ,remove.disease.qtl)
+```
+
+## QTL
+```{r project_pZ, echo=FALSE,results='markup'}
+    plotEuc(no.pZ,remove.disease)
+```
+
+Still doesn't look to good. What happens if we try this by multiplying through by the variance due to sample size $Z \times \sqrt{\frac{1}{n}}$
+
+## $Z \times \sqrt{\frac{1}{n}}$
+
+```{r project_Zadj_no_qtl, echo=FALSE,results='markup'}
+    plotEuc(no.Zadj,remove.disease.qtl)
+```
+
+```{r project_Zadj, echo=FALSE,results='markup'}
+    plotEuc(no.Zadj,remove.disease)
+```
+
+## $Z \times \sqrt{\frac{1}{n}} \times PP$
+
+## No QTL
+```{r project_Zpadj_no_qtl, echo=FALSE,results='markup'}
+    plotEuc(no.pZadj,remove.disease.qtl)
+```
+
+QTL
+```{r project_Zpadj, echo=FALSE,results='markup'}
+    plotEuc(no.pZadj,remove.disease)
+```

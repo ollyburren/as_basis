@@ -109,10 +109,10 @@ rownames(beta.cf)<-paste('beta',c('T1D_1','T1D_2'),sep='_')
 beta.cf
 ```
 
-```{r beta_projections_bar, echo=TRUE, fig.cap="Barplot comparison of log(OR) principal components",fig.pos='ht'}
+```{r beta_projections_bar, echo=TRUE, fig.cap="Barplot comparison of log(OR) principal components",fig.pos='ht',eval=FALSE}
     plotAllProjection(beta.pca.proj.t1d.1,beta.pca,'T1D_1','T1D_2')
 ```
-```{r beta_projections_line_all, echo=TRUE, fig.cap="Lineplot comparison of all log(OR) principal components",fig.pos='ht'}
+```{r beta_projections_line_all, echo=TRUE, fig.cap="Lineplot comparison of all log(OR) principal components",fig.pos='ht',eval=FALSE}
     altPlotAllProjection(beta.pca.proj.t1d.1,beta.pca,'T1D_1','T1D_2')
 ```
 ```{r beta_projections_line_spec, echo=TRUE, fig.cap="Lineplot comparison of log(OR) T1D_1,T1D_2 and control principal components",fig.pos='ht'}
@@ -134,10 +134,10 @@ rownames(pz.cf)<-paste('pz',c('T1D_1','T1D_2','control'),sep='_')
 pz.cf
 ```
 
-```{r partial_z_projections_bar, echo=TRUE, fig.cap="Barplot comparison of partial $Z$ principal components",fig.pos='ht'}
+```{r partial_z_projections_bar, echo=TRUE, fig.cap="Barplot comparison of partial $Z$ principal components",fig.pos='ht',eval=FALSE}
    plotAllProjection(pz.pca.proj.t1d.1,pz.pca,'T1D_1','T1D_2')
 ```
-```{r partial_z_projections_line_all, echo=TRUE, fig.cap="Lineplot comparison of all partial $Z$ principal components",fig.pos='ht'}
+```{r partial_z_projections_line_all, echo=TRUE, fig.cap="Lineplot comparison of all partial $Z$ principal components",fig.pos='ht',eval=FALSE}
     altPlotAllProjection(pz.pca.proj.t1d.1,pz.pca,'T1D_1','T1D_2')
 ```
 ```{r partial_z_projections_line_spec, echo=TRUE, fig.cap="Lineplot comparison of partial $Z$ T1D_1,T1D_2 and control principal components",fig.pos='ht'}
@@ -159,10 +159,10 @@ rownames(pp.cf)<-paste('pp',c('T1D_1','T1D_2','control'),sep='_')
 pp.cf
 ```
 
-```{r post_prob_projections_bar, echo=TRUE, fig.cap="Barplot comparison of posterior probability weighted log(OR) principal components",fig.pos='ht'}
+```{r post_prob_projections_bar, echo=TRUE, fig.cap="Barplot comparison of posterior probability weighted log(OR) principal components",fig.pos='ht',eval=FALSE}
     plotAllProjection(pp.pca.proj.t1d.1,pp.pca,'T1D_1','T1D_2')
 ```
-```{r post_prob_projections_line_all, echo=TRUE, fig.cap="Lineplot comparison of all posterior probability weighted log(OR) principal components",fig.pos='ht'}
+```{r post_prob_projections_line_all, echo=TRUE, fig.cap="Lineplot comparison of all posterior probability weighted log(OR) principal components",fig.pos='ht',eval=FALSE}
     altPlotAllProjection(pp.pca.proj.t1d.1,pp.pca,'T1D_1','T1D_2')
 ```
 ```{r post_prob_projections_line_spec, echo=TRUE, fig.cap="Lineplot comparison of posterior probability weighted log(OR) T1D_1,T1D_2 and control principal components",fig.pos='ht'}
@@ -190,10 +190,10 @@ cw.pp.cf
 
 Note that `r length(no.p['T1D_1',])` snps available for log(or) and `r length(colnames(no.pp))` snps for posterior prob giving `r length(idx)` in common.
 
-```{r cw_postprob_projections_bar, echo=TRUE, fig.cap="Barplot comparison of posterior probability weighted log(OR) principal components",fig.pos='ht'}
+```{r cw_postprob_projections_bar, echo=TRUE, fig.cap="Barplot comparison of posterior probability weighted log(OR) principal components",fig.pos='ht',eval=FALSE}
     plotAllProjection(cw.pp.pca.proj.t1d.1,cw.pp.pca,'T1D_1','T1D_2')
 ```
-```{r cw_postprob_projections_line_all, echo=TRUE, fig.cap="Lineplot comparison of all posterior probability weighted log(OR) principal components",fig.pos='ht'}
+```{r cw_postprob_projections_line_all, echo=TRUE, fig.cap="Lineplot comparison of all posterior probability weighted log(OR) principal components",fig.pos='ht',eval=FALSE}
     altPlotAllProjection(cw.pp.pca.proj.t1d.1,cw.pp.pca,'T1D_1','T1D_2')
 ```
 ```{r cw_postprob_projections_line_spec, echo=TRUE, fig.cap="Lineplot comparison of posterior probability weighted log(OR) T1D_1,T1D_2 and control principal components",fig.pos='ht'}
