@@ -61,6 +61,12 @@ This dir contains code for creating figures and misc analysis
 
 `Rscript --vanilla analysis3_w_sim.R -o /tmp/sample_size/3_3.RData -c 3000  -t 3000`
 
+## R/markdown
+
+This dir contains misc. R Studio markdown code. A vignette for converting regression to logisti
+
+- beta_to_or.Rmd -  A vignette for converting regression parameters to logistic regression parameters using summary statistics.
+
 ## Notes
 
 Have begun to refactor code so that plotting is separated from the simulation to get final plots (including simulation of affy vs ill and affy (expectation of beta 0) vs ill).

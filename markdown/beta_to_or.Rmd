@@ -10,7 +10,7 @@ output:
 
 Many traits that we might like to include in the basis are continuous and therefore we only have access to published summary statistics for a linear regression of the form $$ Y = \alpha + \beta X + \epsilon$$.
 
-We therefore need a method to convert linear regression summary statistics from these studies to their logistic regression counterparts including log(OR) or $\beta$ coefficients and it's standard error - $\sigma_{\beta}$. The code below first simulates some continuous and allelic data for a single biallelic SNP with various known parameters. We then fit a linear model and use this to estimate parameters. Next we dichotomise the trait by grouping those individuals whom $Y > \bar{y}$ and then fit a logistic model to estimate $\beta$ and $\sigma_{\beta}$. 
+We therefore need a method to convert linear regression summary statistics from these studies to their logistic regression counterparts including log(OR) or $\beta$ coefficients and it's standard error - $\sigma_{\beta}$. The code below first simulates some continuous and allelic data for a single biallelic SNP with various known parameters. We then fit a linear model and use this to estimate parameters. Next we dichotomise the trait by grouping those individuals whom $Y > \bar{y}$ and then fit a logistic model to estimate $\beta$ and $\sigma_{\beta}$.
 
 Next we assume that genotype and trait data is unavailable but that we have access to  population allele frequency data for the SNP (MAF), N the sample size, $\beta$ the linear regression coefficient it standard error $\sigma_{\beta}$. We then demonstrate that these are suffcient to compute $\bar{x}$ and $\bar{y}$ an estimate of the standard error of $\epsilon$ or $\sigma_{\epsilon}$. We compare these values to their empirical counterparts to validate the method.  
 
@@ -31,7 +31,7 @@ p.val<-5e-8
 beta.se<-beta/abs(qnorm(p.val/2))
 ```
 
-Here we simulate a continuous trait with slope $\beta=$ `r beta` in a sample size of $N=$ `r N` in a single biallelic SNP with maf$=$ `r maf`. This implies a $\sigma_{\beta}=$ `r signif(beta.se,digits=2)` at the  significance level of $`r p.val`$. 
+Here we simulate a continuous trait with slope $\beta=$ `r beta` in a sample size of $N=$ `r N` in a single biallelic SNP with maf$=$ `r maf`. This implies a $\sigma_{\beta}=$ `r signif(beta.se,digits=2)` at the  significance level of $`r p.val`$.
 
 ```{r}
 #simulate genotypes
@@ -45,7 +45,7 @@ Y=X*beta+rnorm(N,mean=0,sd=se.e)
 ##Plot data with linear regression fit
 
 ```{r}
-ggplot(data.frame(x=X,y=Y),aes(x=X,y=Y)) + geom_point()  + 
+ggplot(data.frame(x=X,y=Y),aes(x=X,y=Y)) + geom_point()  +
     geom_smooth(method='lm',formula=y~x) + theme_bw()
 
 ```
@@ -87,7 +87,7 @@ YbarHat<-beta * XbarHat
 Actual sample $\bar{y}$ is `r signif(mean(Y),digits=2)` our estimate is `r YbarHat`.
 
 For interest want to check that $$\bar{y} = E(y) = \sum_i E(Y|X_i)P(X_i)$$ i.e
-$$\bar{y} = \frac{\beta(N_{\text{het}} + 2N_{\text{hom}})}{N}$$ 
+$$\bar{y} = \frac{\beta(N_{\text{het}} + 2N_{\text{hom}})}{N}$$
 ```{r}
 n.wt<-wtscore(N,raf,1)
 n.het<-hetscore(N,raf,1)
@@ -133,7 +133,6 @@ calcP<-function(X,beta,SE.epsilon,val=YbarHat){
 }
 
 calcOdds<-function(X,beta,SE.epsilon,val=YbarHat){
-    #num<-pnorm(val,mean=X*beta,sd=SE.epsilon,lower.tail = FALSE)
     num<-calcP(X,beta,SE.epsilon,val)
     num/(1-num)
 }
@@ -182,7 +181,7 @@ gamma_hat_maf<-function(n0,n1,f,theta){
 n.cases<-round(sum(calcP(0,beta,se.eHat) * n.wt,calcP(1,beta,se.eHat) *
                        n.het,calcP(2,beta,se.eHat) *n.hom))
 n.controls<-N-n.cases
-#this makes sense given that we expect a normal distribution so in 
+#this makes sense given that we expect a normal distribution so in
 #future can shorcut but N/2 for the special case where we want Y > ybar
 ## next compute the variance component of beta due to allele freq
 ploidy<-2
