@@ -12,19 +12,19 @@ source("./wakefield.R")
 sim.size<-100
 pi_1<-1e-4
 
-SIM.FILE<-'/home/ob219/scratch/as_basis/figure_data/analysis1_ill_vs_aff_ci.RDS'
-SIM.FILE.NULL<-'/home/ob219/scratch/as_basis/figure_data/analysis1_ill_vs_aff_ci_under_null.RDS'
+SIM.FILE<-'/home/ob219/scratch/as_basis/figure_data/analysis1_ill_basis_ci.RDS'
+SIM.FILE.NULL<-'/home/ob219/scratch/as_basis/figure_data/analysis1_ill_basis_ci_under_null.RDS'
 ## this takes a long time and should be hived off
 if(file.exists(SIM.FILE)){
   empirical_confidence_intervals<-readRDS(SIM.FILE)
 }else{
-  source("./simulate_aff_ill.R")
+  source("./simulate_aff_basis.R")
 }
 
 if(file.exists(SIM.FILE.NULL)){
   empirical_confidence_intervals_null<-readRDS(SIM.FILE.NULL)
 }else{
-  source("./simulate_aff_ill_null.R")
+  source("./simulate_aff_basis_null.R")
 }
 
 ## next load simulations under the null
@@ -83,5 +83,5 @@ plots<-lapply(names(all.comparisons),function(n){
 #pdf("/home/ob219/git/as_basis/pdf/analysis1_w_sim.pdf",paper="a4")
 multiplot(plotlist=plots,cols=3)
 # wysiwyg printing adjust on screen and then run
-dev.print(pdf,"/home/ob219/git/as_basis/pdf/analysis1_aff_vs_ill_w_sim.pdf")
+dev.print(pdf,"/home/ob219/git/as_basis/pdf/analysis1_aff_basis_w_sim.pdf")
 #dev.off()
