@@ -73,6 +73,7 @@ threshSigmaBeta<-function(thresh,n1,n0,m,tb){
   var_maf * var_ss * var_ploidy
 }
 
+## overall conversion routine
 convertBetaToOR<-function(thresh,N,b,seb,m){
   if (missing(thresh))
     thresh <- y_bar(b,N,m)

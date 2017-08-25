@@ -1,16 +1,17 @@
 ---
-title: "Converting regression parameters from linear to logistic models using only summary statistics"
+title: Converting regression parameters from linear to logistic models using only
+  summary statistics
 output:
-  pdf_document: default
   html_notebook: default
   html_document: default
+  pdf_document: default
 ---
 
 #Introduction
 
 Many traits that we might like to include in the basis are continuous and therefore we only have access to published summary statistics for a linear regression of the form $$ Y = \alpha + \beta X + \epsilon$$.
 
-We therefore need a method to convert linear regression summary statistics from these studies to their logistic regression counterparts including log(OR) or $\beta$ coefficients and it's standard error - $\sigma_{\beta}$. The code below first simulates some continuous and allelic data for a single biallelic SNP with various known parameters. We then fit a linear model and use this to estimate parameters. Next we dichotomise the trait by grouping those individuals whom $Y > \bar{y}$ and then fit a logistic model to estimate $\beta$ and $\sigma_{\beta}$.
+We therefore need a method to convert linear regression summary statistics from these studies to their logistic regression counterparts including log(OR) or $\beta$ coefficients and it's standard error - $\sigma_{\beta}$. The code below first simulates some continuous and allelic data for a single biallelic SNP with various known parameters. We then fit a linear model and use this to estimate parameters. Next we dichotomise the trait by grouping those individuals whom $Y > \bar{y}$ and then fit a logistic model to estimate $\beta$ and $\sigma_{\beta}$. 
 
 Next we assume that genotype and trait data is unavailable but that we have access to  population allele frequency data for the SNP (MAF), N the sample size, $\beta$ the linear regression coefficient it standard error $\sigma_{\beta}$. We then demonstrate that these are suffcient to compute $\bar{x}$ and $\bar{y}$ an estimate of the standard error of $\epsilon$ or $\sigma_{\epsilon}$. We compare these values to their empirical counterparts to validate the method.  
 
@@ -29,9 +30,10 @@ maf<-0.1
 beta<-0.4
 p.val<-5e-8
 beta.se<-beta/abs(qnorm(p.val/2))
+signif.digits=3
 ```
 
-Here we simulate a continuous trait with slope $\beta=$ `r beta` in a sample size of $N=$ `r N` in a single biallelic SNP with maf$=$ `r maf`. This implies a $\sigma_{\beta}=$ `r signif(beta.se,digits=2)` at the  significance level of $`r p.val`$.
+Here we simulate a continuous trait with slope $\beta=$ `r beta` in a sample size of $N=$ $`r N`$ in a single biallelic SNP with maf$=$ `r maf`. This implies a $\sigma_{\beta}=$ `r signif(beta.se,digits=signif.digits)` at the  significance level of $`r p.val`$. 
 
 ```{r}
 #simulate genotypes
@@ -45,7 +47,7 @@ Y=X*beta+rnorm(N,mean=0,sd=se.e)
 ##Plot data with linear regression fit
 
 ```{r}
-ggplot(data.frame(x=X,y=Y),aes(x=X,y=Y)) + geom_point()  +
+ggplot(data.frame(x=X,y=Y),aes(x=X,y=Y)) + geom_point()  + 
     geom_smooth(method='lm',formula=y~x) + theme_bw()
 
 ```
@@ -76,7 +78,7 @@ estXbarHat<-(wtscore(N,raf) + hetscore(N,raf) + homscore(N,raf))/N
 ## if we do the algebra then xbarhat simplifies to 2 * (1-raf) or 2 * maf
 XbarHat<-2*maf
 ```
-Actual sample $\bar{x}$ is `r signif(mean(X),digits=2)`, from brute force `r estXbarHat` and from simplification `r XbarHat`. So far so good.
+Actual sample $\bar{x}$ is `r signif(mean(X),digits=signif.digits)`, from brute force `r estXbarHat` and from simplification `r XbarHat`. So far so good.
 
 Next estimate $\bar{y}$, which I think is the value of $Y|X=\bar{x}$ or $\hat{y} = \beta \bar{x}$
 
@@ -84,17 +86,17 @@ Next estimate $\bar{y}$, which I think is the value of $Y|X=\bar{x}$ or $\hat{y}
 YbarHat<-beta * XbarHat
 ```
 
-Actual sample $\bar{y}$ is `r signif(mean(Y),digits=2)` our estimate is `r YbarHat`.
+Actual sample $\bar{y}$ is `r signif(mean(Y),digits=signif.digits)` our estimate is `r YbarHat`.
 
 For interest want to check that $$\bar{y} = E(y) = \sum_i E(Y|X_i)P(X_i)$$ i.e
-$$\bar{y} = \frac{\beta(N_{\text{het}} + 2N_{\text{hom}})}{N}$$
+$$\bar{y} = \frac{\beta(N_{\text{het}} + 2N_{\text{hom}})}{N}$$ 
 ```{r}
 n.wt<-wtscore(N,raf,1)
 n.het<-hetscore(N,raf,1)
 n.hom<-homscore(N,raf,1)
 estYbar<-(beta * (n.het + (2 * n.hom)))/N
 ```
-Using this method the estimated value of $\bar{y}$ is `r signif(estYbar,digits=2)`.
+Using this method the estimated value of $\bar{y}$ is `r signif(estYbar,digits=signif.digits)`.
 
 
 Next we want to estimate the sum of squares for X (SSX) or $\sum_i (X_i-\bar{x})^2$
@@ -121,7 +123,7 @@ Next compute $\hat{\sigma_{\epsilon}}$ that is our estimate of the standard erro
 se.eHat<-beta.se * sqrt(estSSXHat)
 ```
 
-The actual value of $\sigma_{\epsilon}$ is `r signif(se.e,digits=2)` our estimated value is `r signif(se.eHat,digits=2)`. Looking good !
+The actual value of $\sigma_{\epsilon}$ is `r signif(se.e,digits=signif.digits)` our estimated value is `r signif(se.eHat,digits=signif.digits)`. Looking good !
 
 Next we need to estimate the Odds of $(Y>\bar{y} | X = x)$ we can then compute the OR as $\frac{Odds(Y>\bar{y} | X = 1)}{Odds(Y>\bar{y} | X = 0)}$
 
@@ -133,6 +135,7 @@ calcP<-function(X,beta,SE.epsilon,val=YbarHat){
 }
 
 calcOdds<-function(X,beta,SE.epsilon,val=YbarHat){
+    #num<-pnorm(val,mean=X*beta,sd=SE.epsilon,lower.tail = FALSE)
     num<-calcP(X,beta,SE.epsilon,val)
     num/(1-num)
 }
@@ -144,7 +147,7 @@ lodHat<-lod_Y_X1-lod_Y_X0
 ## get estimated log(OR) from fit
 fitLod<-summary(lmod)[["coefficients"]][,1][2]
 ```
-Actual log(OR) or $\beta$ from logistic regression fit is `r signif(fitLod,digits=2)` our estimate is `r signif(lodHat,digits=2)`.
+Actual log(OR) or $\beta$ from logistic regression fit is `r signif(fitLod,digits=signif.digits)` our estimate is `r signif(lodHat,digits=signif.digits)`.
 
 Finally attempt to compute the standard error or $\sigma_{\beta}$ for our $\hat{\beta}$
 
@@ -181,7 +184,7 @@ gamma_hat_maf<-function(n0,n1,f,theta){
 n.cases<-round(sum(calcP(0,beta,se.eHat) * n.wt,calcP(1,beta,se.eHat) *
                        n.het,calcP(2,beta,se.eHat) *n.hom))
 n.controls<-N-n.cases
-#this makes sense given that we expect a normal distribution so in
+#this makes sense given that we expect a normal distribution so in 
 #future can shorcut but N/2 for the special case where we want Y > ybar
 ## next compute the variance component of beta due to allele freq
 ploidy<-2
@@ -190,7 +193,7 @@ var_ss<-sqrt(1/N)
 estSigmaBeta<-sqrt(1/ploidy) * var_maf * var_ss
 fitSigmaBeta<-summary(lmod)[['coefficients']][,2][2]
 ```
-From logistic regression fit we estimate $\sigma_{\beta}$ = `r signif(fitSigmaBeta,digits=2)` our estimate using just MAF, $\hat{\theta}$ and Sample size is `r signif(estSigmaBeta,digits=2)`. Looking good.
+From logistic regression fit we estimate $\sigma_{\beta}$ = `r signif(fitSigmaBeta,digits=signif.digits)` our estimate using just MAF, $\hat{\theta}$ and Sample size is `r signif(estSigmaBeta,digits=signif.digits)`. Looking good.
 
 Next examine the P value that we get from this compared to the original P
 
@@ -201,4 +204,4 @@ estP<-2*(pnorm(estZ,lower.tail = FALSE))
 
 #Conclusions
 
-Our input p-val was $`r p.val`$ however we end up with $`r signif(estP,digits=2)`$ so a considerable loss of power as expected when dichotomising a continuous trait. It remains to be seen whether this loss in power is offset by the ability to add/project quantitative traits onto the basis.
+Our input p-val was $`r p.val`$ however we end up with $`r signif(estP,digits=signif.digits)`$ so a considerable loss of power as expected when dichotomising a continuous trait. It remains to be seen whether this loss in power is offset by the ability to add/project quantitative traits onto the basis.
