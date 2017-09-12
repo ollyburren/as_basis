@@ -1,6 +1,6 @@
 library(data.table)
 library(GenomicRanges)
-## processed summary stats 
+## processed summary stats
 ## FUNCTIONS
 comp<-function(cv){
   tmp<-cv
@@ -53,12 +53,12 @@ if(!file.exists("/scratch/ob219/as_basis/tmp/all_or_shared_with_af.RData")){
 	final[flip.idx,]$risk.allele<-final[flip.idx,]$a1
 	final[flip.idx,]$other.allele<-final[flip.idx,]$a2
 	non.match.idx<-which(final$risk.allele != final$a1)
-	## are these because they are complement 
+	## are these because they are complement
 	## how many have alleles where it is impossible to work out where rev comp e.g.
 	#A,T T,A G,C C,G -- there is one and it's already taken care of
 	#subset(final,risk.allele=='C' & other.allele=='G')
 	flip.comp.idx<-with(final,which(comp(risk.allele) == a2 & comp(other.allele) ==a1))
-	##change 
+	##change
 	actual.flip.comp.idx<-intersect(non.match.idx,flip.comp.idx)
 	final[actual.flip.comp.idx,]$or<-signif(1/final[actual.flip.comp.idx,]$or,digits=3)
 	## fix alleles
@@ -73,7 +73,7 @@ if(!file.exists("/scratch/ob219/as_basis/tmp/all_or_shared_with_af.RData")){
 	save(final,file="/scratch/ob219/as_basis/tmp/combined_raw_as_basis.RData")
 
 	## final is a long thin list of OR here is a function to create (based on p-val threshold)
-	## a matrix of log(OR) - so they are symmetrical. Also adds a control column  where 
+	## a matrix of log(OR) - so they are symmetrical. Also adds a control column  where
 	## all OR =1 or log(or)=0
 
 	## add the allele frequencies
@@ -144,7 +144,7 @@ add.pp<-function(DT,pi_i=1e-4,total,prop,type){
 #maj_idx<-which(final.t$risk.allele.freq>0.5)
 #final.t$maf<-final.t$risk.allele.freq
 #final.t[maj_idx,]$maf<-1-final.t[maj_idx,]$maf
-## for each disease 
+## for each disease
 all.pp<-lapply(names(by.disease),function(n){
 	message(paste("Processing",n))
 	ss.idx<-which(ss$disease==n)
@@ -164,53 +164,3 @@ all.pp<-lapply(names(by.disease),function(n){
 final.t<-rbindlist(all.pp)
 final.t$lor<-log(final.t$or)
 save(final.t,file="/home/ob219/scratch/as_basis/merged_data/17_traits.RData")
-#final.t$por<-log(final.t$or) * final.t$pp
-
-
-## f is defined as the minor allele frequency
-##split by sample and compute the partial variance 
-## this should be done on a study by study basis
-
-createORMatrix<-function(DT,p.val.thresh=1,var='lor'){
-   tmp<-unique(DT[DT$p.val<p.val.thresh,]$id)
-   tmp<-DT[which(DT$id %in% tmp),]
-   tmp$lor<-log(tmp$or)
-   tmp<-melt(tmp,id.vars=c('id','disease'),measure.vars = var) 
-   ret<-dcast(tmp,disease~id)
-   diseases<-ret$disease
-   ret<-as.data.frame(ret[,2:ncol(ret),with=FALSE])
-   rownames(ret)<-diseases
-   fret<-rbind(ret,rep(0,ncol(ret)))
-   rownames(fret)<-c(diseases,'control')
-   fret
-}
-
-no.pp<-createORMatrix(final.t,var='por')
-save(no.pp,file="/home/ob219/scratch/as_basis/tmp/no_p_pp_matrix3.RData")
-no.lor<-createORMatrix(final.t)
-save(no.lor,file="/home/ob219/scratch/as_basis/tmp/no_p_lor_matrix3.RData")
-
-
-### p.vals cut offs 
-#p.val<-c(1,0.1,1e-2,1e-3,1e-4)
-#
-### what about crazy or > 10
-#
-#
-#function(p){
-#   tmp<-unique(final[final$p.val<p,]$id)
-#   tmp<-final[which(final$id %in% tmp),]
-#   tmp$lor<-log(tmp$or)
-#   tmp<-melt(tmp,id.vars=c('id','disease'),measure.vars = 'lor') 
-#   ret<-dcast(tmp,disease~id)
-#   diseases<-ret$disease
-#   ret<-as.data.frame(ret[,2:ncol(ret),with=FALSE])
-#   rownames(ret)<-diseases
-#   ret.pca <- prcomp(ret,center=TRUE,scale=TRUE)
-#   g <- ggbiplot(ret.pca, choices = 2:3, obs.scale = 1, var.scale = 1,labels=diseases,
-#               ellipse = TRUE, circle = TRUE,var.axes=FALSE)
-#   g <- g + coord_cartesian(xlim=c(-10,10),ylim=c(-10,10))
-#   
-#}
-#
-#save(ret,file="/home/ob219/scratch/as_basis/tmp/lor_matrix.RData")
