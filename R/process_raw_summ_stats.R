@@ -134,7 +134,8 @@ save(ibd.out,file=file.path(process.dir,'IBD.RData'))
 ##PSCG
 psc<-fread(paste0(raw.dir,'ipscsg2016.result.combined.full.with_header.txt'))
 psc.out<-psc[,c('#chr','SNP','pos','allele_0','allele_1','or','p'),with=FALSE]
-setnames(psc.out,c('chr','id','position','risk.allele','other.allele','or','p.val'))
+#setnames(psc.out,c('chr','id','position','risk.allele','other.allele','or','p.val'))
+setnames(psc.out,c('chr','id','position','other.allele','risk.allele','or','p.val'))
 setcolorder(psc.out,out.cols)
 save(psc.out,file=file.path(process.dir,'PSC.RData'))
 
@@ -154,7 +155,7 @@ save(psc.out,file=file.path(process.dir,'PSC.RData'))
 #t1d$chromosome<-t1d$chr
 #t1d$chr<-NULL
 
-## function to process T1D and get different cohorts based on colnames 
+## function to process T1D and get different cohorts based on colnames
 
 #processT1D<-function(t1d,beta.cname,se.cname){
 #	cnames<-c('rsid','chromosome','position','alleleA','alleleB',beta.cname,se.cname)
@@ -219,7 +220,7 @@ jia<-rbindlist(lapply(jia.files,function(f){
 	setnames(tmp,c('id','chr','snp.name','cM','position','a1','a2','other.id','ref','alt','af','beta.sys','se.sys','beta.nosys','se.nosys'))
 	tmp[,c('id','chr','position','a1','a2','beta.sys','se.sys','beta.nosys','se.nosys'),with=FALSE]
 }))
-	
+
 
 processJIA<-function(jia,beta.cname,se.cname){
 	cnames<-c('id','chr','position','a1','a2',beta.cname,se.cname)
@@ -239,8 +240,8 @@ jia.sys<-processJIA(jia,'beta.sys','se.sys')
 save(jia.sys,file=file.path(process.dir,'JIA_sys.RData'))
 jia.nosys<-processJIA(jia,'beta.nosys','se.nosys')
 save(jia.nosys,file=file.path(process.dir,'JIA_nosys.RData'))
-	
-## Asthma 
+
+## Asthma
 asthma.dir<-'/scratch/wallace/gwas-summary-stats/asthma/'
 a.file<-file.path(asthma.dir,'gabriel.csv.gz')
 as.DT<-fread(sprintf("zcat %s",a.file))
@@ -276,7 +277,7 @@ asthma.out$chr<-as.integer(asthma.out$chr)
 setkeyv(asthma.out,c('chr','position'))
 all.blood<-lapply(bfiles,function(f){
 	message(sprintf("Processing %s",f))
-	tmp<-fread(sprintf("zcat %s",file.path(blood.data.dir,f)))	
+	tmp<-fread(sprintf("zcat %s",file.path(blood.data.dir,f)))
 	setkeyv(tmp,c('CHR','BP'))
 	tmp<-tmp[asthma.out]
 	tmp<-tmp[,names(tmp),with=FALSE]
@@ -294,4 +295,31 @@ for(i in seq_along(all.blood)){
 	ofile<-file.path(process.dir,paste(t,'RData',sep='.'))
 	assign(varname,all.blood[[i]])
 	save(list=varname,file=ofile)
-}	
+}
+
+
+## Myositis
+
+my.DT<-fread('/home/ob219/scratch/as_basis/gwas_stats/to_project/Myositis.txt')
+
+## assume that these are all JDM
+## I think that the data is from build36 so need to remap to 37
+lu<-snpsById(snps,my.DT$SNP,ifnotfound='drop')
+lu<-data.table(as.data.frame(lu))
+setkey(lu,'RefSNP_id')
+setkey(my.DT,'SNP')
+my.DT<-my.DT[lu]
+## attempt to reconstruct allele 2 from IUPAC codes notice there is some ambigutity.
+cIUPAC<-list(
+	R=c('A','G'),
+	Y=c('C','T'),
+	S=c('G','C'),
+	W=c('A','T'),
+	K=c('G','T'),
+	M=c('A','C'),
+	B=c('C','G','T'),
+	D=c('A','G','T'),
+	H=c('A','C','T'),
+	N='N',
+	V=c('A','C','G'))
+)
