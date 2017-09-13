@@ -95,7 +95,7 @@ if(!file.exists("/scratch/ob219/as_basis/tmp/all_or_shared_with_af.RData")){
 	support[comp.idx,]$risk.allele.freq<-support[comp.idx,]$a2.f
 	rev.comp.idx<-with(support,which(comp(risk.allele) == a1 & comp(other.allele) ==a2 & risk.allele.freq==0))
 	support[rev.comp.idx,]$risk.allele.freq<-1-support[rev.comp.idx,]$a2.f
-	csupport<-support[,c('chr','position','name','risk.allele.freq'),with=FALSE]
+	csupport<-unique(support[,c('chr','position','name','risk.allele.freq'),with=FALSE])
 	save(csupport,file='/scratch/ob219/as_basis/tmp/shared_support_file_with_AF.RData')
 	wrong.idx<-setdiff(1:nrow(support),c(ok.idx,flip.idx))
 	## add these back to final

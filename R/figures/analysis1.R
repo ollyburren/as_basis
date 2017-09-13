@@ -26,6 +26,7 @@ if(file.exists(tmpfile)){
 	# examine what happens if we compute gh using maf ?
 	DT[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(lor))]
 	DT[,gh_maf_pp:=gh_maf * pp]
+	DT<-rbind(DT,createControl(DT))
 	##
 	DT.no.affy<-DT[DT$disease != 'aff.t1d']
 	DT.no.affy[,lp0:=log(1-approx.bf.z2(Z,maf,cases+controls,cases/(cases+controls),pi_1)),by=c('disease','ld.block')]
@@ -54,7 +55,7 @@ if(file.exists(tmpfile)){
 	DT[,gh_ss_pw:=gh_ss * pwi]
 	DT[,gh_maf_pw:=gh_maf * pwi]
 
-	DT<-rbind(DT,createControl(DT))
+	#DT<-rbind(DT,createControl(DT))
 
 	bases<-lapply(metrics,function(m){
         	createMatrix(DT,var=m)
