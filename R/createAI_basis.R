@@ -58,10 +58,10 @@ createBasis<-function(DT,m){
   prcomp(basis.matrix,center=TRUE,scale=FALSE)
 }
 
-jia.jia.DT<-getGWASData()
+jia.DT<-getGWASData()
 ## remove quat traits
 jia<-c('jia_cc','jia_EO','jia_ERA','JIA_nosys','jia_PO','jia_PsA','jia_RFneg','jia_RFpos','jia_sys')
-jia.jia.DT<-jia.DT[jia.DT$disease %in% jia,]
+jia.DT<-jia.DT[jia.DT$disease %in% jia,]
 
 jia.DT[,Z:=qnorm(0.5 * p.val, lower.tail = FALSE) * sign(lor)]
 ## compute gamma - this can be computed in different ways
