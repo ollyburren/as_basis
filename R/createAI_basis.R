@@ -30,7 +30,6 @@ if(!file.exists(tmpfile)){
     # examine what happens if we compute gh using maf ?
     DT[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(or))]
     DT[,gh_maf_pp:=gh_maf * pp]
-    jia.DT<-DT[DT$disease %in% jia,]
     DT<-DT[!DT$disease %in% jia,]
     DT[,lp0:=log(1-approx.bf.z2(Z,maf,cases+controls,cases/(cases+controls),pi_1)),by=c('disease','ld.block')]
     DT<-rbind(DT,createControl(DT))
@@ -148,6 +147,14 @@ plotter<-function(i){
   ggplot(dat,aes(x=variable,y=value,label=trait_label,color=compare,group=trait,lty=ab.pos)) + geom_point() + geom_line() + geom_text(angle=ifelse(dat$compare,90,0)) + scale_color_discrete(guide=FALSE)  + theme_bw() + ggtitle(title) + xlab('PC') + ylab('Loading')
 }
 
+pheno<-fread('/home/ob219/scratch/as_basis/gwas_stats/sample_counts_bb.csv')
+
+sub.p<-subset(pheno,disease %in% c(names(ml),unlist(ml)))
+sub.p<-sub.p[order(sub.p$cases,decreasing=TRUE),][,.(disease,cases)]
+sub.p$disease<-gsub('bb:[^:]+:self_reported_','',sub.p$disease)
+
+library(xtable)
+xtable(pheno)
 
 library(ggplot2)
 pdf(file="~/tmp/bb_compare_as_basis.pdf")
@@ -155,3 +162,25 @@ lapply(seq_along(ml),function(i){
   plotter(i)
 })
 dev.off()
+
+
+## taking RA as an example
+
+ex<-subset(all.DT,disease %in% c('RA','bb:20002_1464:self_reported_rheumatoid_arthritis'))
+setkey(ex,id)
+ex<-ex[pwi]
+ex[ex$disease=='bb:20002_1464:self_reported_rheumatoid_arthritis',disease:='bb_RA']
+ex[,lp:=-log(p.val)]
+## take the p.vals of the snps with top 10% pwi
+n<-1
+top.ex<-ex[ex$pwi > quantile(ex$pwi,prob=1-n/100),]
+
+m<-melt(top.ex,id.vars=c('id','name','disease'),measure.vars='lp')
+fin<-dcast(m,id+name~disease+variable)
+
+library(cowplot)
+
+ggplot(fin,aes(x=RA_lp,y=bb_RA_lp)) + geom_point() + theme_bw()
+
+
+cor(fin$RA_lp,fin$bb_RA_lp)
