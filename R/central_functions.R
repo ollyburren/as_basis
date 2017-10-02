@@ -4,13 +4,14 @@ library(ggplot2)
 
 DATA_DIR<-'/scratch/ob219/'
 getGWASData<-function(){
-	lf<-file.path(DATA_DIR,'as_basis/merged_data/17_traits.RData')
+	#lf<-file.path(DATA_DIR,'as_basis/merged_data/17_traits.RData')
+	lf<-file.path(DATA_DIR,'as_basis/merged_data/with_biobank_traits.RData')
 	message(sprintf("Loading trait data from: %s",lf))
-	load(file.path(DATA_DIR,'as_basis/merged_data/17_traits.RData'))
+	load(lf)
 	message(sprintf("Finished loading trait data from: %s",lf))
 	## loads into final.t
 	setkey(final.t,id)
-	ss<-fread(file.path(DATA_DIR,'as_basis/gwas_stats/sample_counts.csv'))
+	ss<-fread(file.path(DATA_DIR,'as_basis/gwas_stats/sample_counts_bb.csv'))
 	ss[,total:=cases+controls]
 	ss[,prop:=signif(cases/(cases+controls),digits=2)]
 	message("Merging study information")

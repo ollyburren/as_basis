@@ -65,7 +65,9 @@ disagree<-lapply(seq_along(DTs),function(i){
     tmp[flip.idx,]$a1<-tmp[flip.idx,]$a2
     tmp[flip.idx,]$a2<-tmpa
   }
-  tmp<-tmp[tmp$a1 != tmp$i.risk.allele,.(trait,name,a1,a2,risk.allele,risk.allele.freq,maf,i.risk.allele,Odds.Ratio)]
+  tmp<-tmp[tmp$a1 != tmp$i.risk.allele,.(trait,name,a1,a2,risk.allele,risk.allele.freq,maf,i.risk.allele,or,Odds.Ratio)]
+  if(nrow(tmp)==0)
+    return(NA)
   tmp<-tmp[tmp$a1 != comp(tmp$i.risk.allele),]
 })
 

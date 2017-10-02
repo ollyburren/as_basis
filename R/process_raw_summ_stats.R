@@ -297,6 +297,31 @@ for(i in seq_along(all.blood)){
 	save(list=varname,file=ofile)
 }
 
+## I computed the GWAS summary statistics for JIA many subtypes
+
+jia.data.dir<-'/home/ob219/scratch/jia/by.trait/'
+jia.fs<-list.files(path=jia.data.dir,pattern='*.RDS',full.names=TRUE)
+all.jia<-lapply(jia.fs,function(f){
+	tmp<-readRDS(f)[,.(rsid,chr,position,a1,a2,beta,p.val)]
+	## for SNP matrix all OR are wrt to a2
+	tmp$or<-exp(tmp$beta)
+	tmp.out<-tmp[,c('rsid','chr','position','a1','a2','or','p.val'),with=FALSE]
+## note that or is wrt allele2 sp flip
+	setnames(tmp.out,c('id','chr','position','a2','a1','or','p.val'))
+	tmp.out<-flip(tmp.out)
+	formatOut(tmp.out)
+})
+names(all.jia)<-paste('jia',basename(gsub("\\.RDS","",jia.fs)),sep='_')
+for(i in seq_along(all.jia)){
+	t<-names(all.jia)[i]
+	varname<-paste(t,'out',sep='.')
+	ofile<-file.path(process.dir,paste(t,'RData',sep='.'))
+	assign(varname,all.jia[[i]])
+	save(list=varname,file=ofile)
+}
+
+## Neale Lab Biobank summary statistics.
+## We process these by a specific script process_bb_summary_stats.R
 
 ## Myositis
 

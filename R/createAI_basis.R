@@ -4,18 +4,22 @@ source("./wakefield.R")
 library(magrittr)
 sim.size<-100
 pi_1<-1e-4
-tmpfile<-"/home/ob219/scratch/as_basis/merged_data/AI_raw.RDS"
+tmpfile<-"/home/ob219/scratch/as_basis/merged_data/AI_test_raw.RDS"
 
+## these are the traits from which to build the basis
+basis_traits<-c('CD','CEL','MS','PBC','PSC','RA','SLE','UC','meta.t1d')
+#jia<-c('jia_cc','jia_EO','jia_ERA','JIA_nosys','jia_PO','jia_PsA','jia_RFneg','jia_RFpos','jia_sys')
 # for ease of computation for simulation we will probably take forward gh_ss
 # for computation without including quantitative traits
 
 if(!file.exists(tmpfile)){
     DT<-getGWASData()
     ## remove quat traits
-    QT<-c('eosinophil','lymphocyte','myeloid','wbc')
-    RMT<-c(QT,'aff.t1d','ill.t1d')
-    jia<-c('jia_cc','jia_EO','jia_ERA','JIA_nosys','jia_PO','jia_PsA','jia_RFneg','jia_RFpos','jia_sys')
-    DT<-DT[!DT$disease %in% RMT,]
+    #QT<-c('eosinophil','lymphocyte','myeloid','wbc')
+    #RMT<-c(QT,'aff.t1d','ill.t1d')
+    DT<-DT[DT$disease %in% basis_traits,]
+    ## asthetically nicer if we move meta.t1d <- t1d
+    DT[DT$disease=='meta.t1d',disease:='T1D']
 
     DT[,Z:=qnorm(0.5 * p.val, lower.tail = FALSE) * sign(lor)]
     ## compute gamma - this can be computed in different ways
@@ -58,41 +62,96 @@ createBasis<-function(DT,m){
   prcomp(basis.matrix,center=TRUE,scale=FALSE)
 }
 
-jia.DT<-getGWASData()
-## remove quat traits
-jia<-c('jia_cc','jia_EO','jia_ERA','JIA_nosys','jia_PO','jia_PsA','jia_RFneg','jia_RFpos','jia_sys')
-jia.DT<-jia.DT[jia.DT$disease %in% jia,]
+## next we project on biobank data and see if it makes any sense whatsoever
 
-jia.DT[,Z:=qnorm(0.5 * p.val, lower.tail = FALSE) * sign(lor)]
+all.DT<-getGWASData()
+traits<-unique(all.DT$disease)
+## get biobank data
+
+bb.traits<-traits[grep('^bb',traits)]
+
+bb.DT<-all.DT[all.DT$disease %in% bb.traits,]
+bb.DT[,Z:=qnorm(0.5 * p.val, lower.tail = FALSE) * sign(lor)]
 ## compute gamma - this can be computed in different ways
 ## by using number of cases and controls if we were to include just case control in the basis - for time being just stick with this
 ##
-jia.DT[,gh_ss:=gamma_hat_ss(Z,total)]
-jia.DT[,gh_ss_pp:=gh_ss * pp]
+bb.DT[,gh_ss:=gamma_hat_ss(Z,total)]
+bb.DT[,gh_ss_pp:=gh_ss * pp]
 # examine what happens if we compute gh using maf ?
-jia.DT[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(or))]
-jia.DT[,gh_maf_pp:=gh_maf * pp]
-setkey(jia.DT,'id')
+bb.DT[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(or))]
+bb.DT[,gh_maf_pp:=gh_maf * pp]
+setkey(bb.DT,'id')
 ## need to add weightings
-pwi<-unique(DT[,.(id,pwi),key='id'])
-jia.DT<-jia.DT[pwi]
-jia.DT[,c('gh_ss_pw','gh_maf_pw'):=list(gh_ss * pwi,gh_maf *pwi)]
+pwi<-unique(DT[,.(id,pwi)])
+setkey(pwi,id)
+bb.DT<-bb.DT[pwi]
+bb.DT[,c('gh_ss_pw','gh_maf_pw'):=list(gh_ss * pwi,gh_maf *pwi)]
 
 
 ## metric/weighting to use
 metric<-'gh_maf_pw'
-## trait to project
-ptrait<-'jia_cc'
 
+
+## ok first we create basis
 asb<-createBasis(DT,metric)
 
-## checked and the order is the same between basis and proj
-proj<-subset(jia.DT,disease==ptrait)[[metric]] %>% as.matrix(.) %>% t(.)
+## for each biobank trait we project this onto the matrix
 
-pred<-predict(asb,proj)
+bb.preds<-lapply(seq_along(bb.traits),function(i){
+  bbt<-bb.traits[i]
+  message(sprintf("processing %s",bbt))
+  proj<-subset(bb.DT,disease==bbt)[[metric]] %>% as.matrix(.) %>% t(.)
+  pred<-data.table(predict(asb,proj))
+  pred$trait <- bbt
+  pred
+})
 
-p <- autoplot(asb, label = TRUE, label.size = 3)
-p + geom_point(x=pred[1,1],y=pred[1,2],color='red')
+bb.pc<-rbindlist(bb.preds)
+bb.pc$basis<-FALSE
+basis.pc <- data.table(asb$x)
+basis.pc[,c('trait','basis'):=list(rownames(asb$x),TRUE)]
+all.pc<-rbind(bb.pc,basis.pc)
 
-## work out how to draw scree plots to compare at each PC
-## also work out how to use euclidian stuff to compare.
+
+## draw a scree plot
+
+## draw one of these for each bb trait.
+
+ml<-list(
+  CD = 'bb:20002_1462:self_reported_crohns_disease',
+  CEL = 'bb:20002_1456:self_reported_malabsorption_coeliac_disease',
+  MS = 'bb:20002_1261:self_reported_multiple_sclerosis',
+  RA = 'bb:20002_1464:self_reported_rheumatoid_arthritis',
+  SLE = 'bb:20002_1381:self_reported_systemic_lupus_erythematosis_sle',
+  T1D = 'bb:20002_1222:self_reported_type_1_diabetes',
+  UC = 'bb:20002_1463:self_reported_ulcerative_colitis'
+)
+
+abpos<-c('PSC','RA','PBC','CEL','T1D','MS','SLE')
+all.pc$biobank<-FALSE
+all.pc[grep('^bb',all.pc$trait),biobank:=TRUE]
+all.pc$ab.pos<-FALSE
+all.pc[all.pc$trait %in% abpos | all.pc$trait %in% unlist(ml[abpos]),ab.pos:=TRUE]
+
+m.pc<-melt(all.pc,id.vars=c('trait','ab.pos','biobank','basis'))
+
+plotter<-function(i){
+  basis_trait<-names(ml)[i]
+  bb_trait<-ml[[i]]
+  title<-paste(basis_trait,bb_trait)
+  dat<-m.pc[which(m.pc$basis | m.pc$trait==bb_trait),]
+  cf.idx<-which(dat$trait %in% c(basis_trait,bb_trait))
+  dat$compare<-FALSE
+  dat<-dat[cf.idx,compare:=TRUE]
+  dat[dat$variable=='PC1',trait_label:=gsub('bb:[^:]+:self_reported_','',trait)]
+  #ggplot(dat,aes(x=variable,y=value,lty=ab.pos,color=trait_label,group=trait,alpha=trait!='control')) + geom_point() + geom_line() + theme_bw()
+  ggplot(dat,aes(x=variable,y=value,label=trait_label,color=compare,group=trait,lty=ab.pos)) + geom_point() + geom_line() + geom_text(angle=ifelse(dat$compare,90,0)) + scale_color_discrete(guide=FALSE)  + theme_bw() + ggtitle(title) + xlab('PC') + ylab('Loading')
+}
+
+
+library(ggplot2)
+pdf(file="~/tmp/bb_compare_as_basis.pdf")
+lapply(seq_along(ml),function(i){
+  plotter(i)
+})
+dev.off()
