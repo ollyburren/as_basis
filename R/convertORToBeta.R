@@ -90,9 +90,11 @@ convertBetaToOR<-function(thresh,N,b,seb,m){
 }
 
 ## test to see if it works
-sN<-10000
-smaf<-0.1
-sbeta<-0.4
-sp.val<-5e-8
-sbeta.se<-sbeta/abs(qnorm(sp.val/2))
-convertBetaToOR(N=sN,b=sbeta,seb=sbeta.se,m=smaf)
+if(FALSE){
+  sN<-10000
+  smaf<-0.1
+  sbeta<-0.4
+  sp.val<-5e-8
+  sbeta.se<-sbeta/abs(qnorm(sp.val/2))
+  convertBetaToOR(N=sN,b=sbeta,seb=sbeta.se,m=smaf)
+}
