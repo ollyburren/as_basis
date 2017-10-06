@@ -85,7 +85,7 @@ convertBetaToOR<-function(thresh,N,b,seb,m){
   n0<-N-n1
   tsb<-threshSigmaBeta(thresh,n1,n0,m,tb)
   Z<-tb/tsb
-  P<-2*(pnorm(Z,lower.tail = FALSE))
+  P<-2*(pnorm(abs(Z),lower.tail = FALSE))
   list(OR=exp(tb),beta=tb,se.beta=tsb,P=P,Z=Z,thresh=thresh,n0=n0,n1=n1)
 }
 
