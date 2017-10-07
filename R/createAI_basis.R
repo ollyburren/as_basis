@@ -178,7 +178,7 @@ top.ex<-ex[ex$pwi > quantile(ex$pwi,prob=1-n/100),]
 m<-melt(top.ex,id.vars=c('id','name','disease'),measure.vars='lp')
 fin<-dcast(m,id+name~disease+variable)
 
-library(cowplot)
+#library(cowplot)
 
 ggplot(fin,aes(x=RA_lp,y=bb_RA_lp)) + geom_point() + theme_bw()
 
