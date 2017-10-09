@@ -30,7 +30,7 @@ if(!file.exists(tmpfile)){
     # examine what happens if we compute gh using maf ?
     DT[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(or))]
     DT[,gh_maf_pp:=gh_maf * pp]
-    DT<-DT[!DT$disease %in% jia,]
+    #DT<-DT[!DT$disease %in% jia,]
     DT[,lp0:=log(1-approx.bf.z2(Z,maf,cases+controls,cases/(cases+controls),pi_1)),by=c('disease','ld.block')]
     DT<-rbind(DT,createControl(DT))
 
@@ -139,12 +139,16 @@ plotter<-function(i){
   bb_trait<-ml[[i]]
   title<-paste(basis_trait,bb_trait)
   dat<-m.pc[which(m.pc$basis | m.pc$trait==bb_trait),]
-  cf.idx<-which(dat$trait %in% c(basis_trait,bb_trait))
+  cf.idx<-which(dat$trait %in% c(basis_trait,bb_trait,'control'))
   dat$compare<-FALSE
   dat<-dat[cf.idx,compare:=TRUE]
   dat[dat$variable=='PC1',trait_label:=gsub('bb:[^:]+:self_reported_','',trait)]
   #ggplot(dat,aes(x=variable,y=value,lty=ab.pos,color=trait_label,group=trait,alpha=trait!='control')) + geom_point() + geom_line() + theme_bw()
-  ggplot(dat,aes(x=variable,y=value,label=trait_label,color=compare,group=trait,lty=ab.pos)) + geom_point() + geom_line() + geom_text(angle=ifelse(dat$compare,90,0)) + scale_color_discrete(guide=FALSE)  + theme_bw() + ggtitle(title) + xlab('PC') + ylab('Loading')
+  #ggplot(dat,aes(x=variable,y=value,label=trait_label,color=compare,group=trait,lty=ab.pos)) +
+  ggplot(dat,aes(x=variable,y=value,label=trait_label,color=compare,group=trait,alpha=compare)) +
+  #geom_point() + geom_line() + geom_text(angle=ifelse(dat$compare,90,0)) +
+  geom_point() + geom_line() + geom_text() +
+  scale_color_discrete(guide=FALSE)  + theme_bw() + ggtitle(title) + xlab('PC') + ylab('Loading')
 }
 
 pheno<-fread('/home/ob219/scratch/as_basis/gwas_stats/sample_counts_bb.csv')
@@ -163,6 +167,80 @@ lapply(seq_along(ml),function(i){
 })
 dev.off()
 
+## define a plotter that allows us to hilight bb dataset on the basis
+
+bb_plotter<-function(bb_trait){
+  dat<-m.pc[which(m.pc$basis | m.pc$trait==bb_trait),]
+  dat$hi<-FALSE
+  dat<-dat[dat$trait %in% c(bb_trait,'control'),hi:=TRUE]
+  dat[dat$variable=='PC1',trait_label:=gsub('bb:[^:]+:self_reported_','',trait)]
+  ggplot(dat,aes(x=variable,y=value,label=trait_label,color=hi,group=trait,alpha=hi)) +
+  geom_point() + geom_line() + geom_text() +
+  scale_color_discrete(guide=FALSE)  + theme_bw() + ggtitle(bb_trait) + xlab('PC') + ylab('Loading')
+}
+
+pdf(file="~/tmp/bb_compare_all_as_basis.pdf")
+lapply(unique(m.pc[!m.pc$basis,]$trait),bb_plotter)
+dev.off()
+
+## just check what happens if we reproject RA on to the basis.
+
+ra.proj<-subset(DT,disease=='RA')[[metric]] %>% as.matrix(.) %>% t(.)
+data.table(predict(asb,ra.proj))
+all.pc[all.pc$trait=='RA',]
+
+## identical
+
+## examine the correlation between traits
+
+pcor<-function(i){
+  basis_trait<-names(ml)[i]
+  message(basis_trait)
+  bb_trait<-ml[[i]]
+  title<-paste(basis_trait,bb_trait)
+  basis.DT<-subset(DT,disease==basis_trait)[,.(id,lor,pwi)]
+  basis.DT$label<-'basis'
+  proj.DT<-subset(bb.DT,disease==bb_trait)[,.(id,lor,pwi)]
+  proj.DT$label<-'proj'
+  mDT<-rbind(basis.DT,proj.DT)
+  mDT[,pwi_lor:=lor * pwi]
+  mDT<-data.table::melt(mDT,id.vars=c('id','label'),measure.vars=c('lor','pwi_lor'))
+  ## do lor
+  mDT<-data.table::dcast(mDT,id~label+variable)
+  par(mfrow=c(2,1))
+  plot(mDT$basis_lor,mDT$proj_lor,main=basis_trait)
+  plot(mDT$basis_pwi_lor,mDT$proj_pwi_lor,main=basis_trait)
+}
+
+
+mypdf = function(pdfname, mypattern = "MYTEMPPNG", ...) {
+    fname = paste0(mypattern, "%05d.png")
+    gpat = paste0(mypattern, ".*\\.png")
+    takeout = list.files(path = tempdir(), pattern = gpat, full.names = TRUE)
+    if (length(takeout) > 0)
+        file.remove(takeout)
+    pngname = file.path(tempdir(), fname)
+    png(pngname, ...)
+    return(list(pdfname = pdfname, mypattern = mypattern))
+}
+# copts are options to sent to convert
+mydev.off = function(pdfname, mypattern, copts = "") {
+    dev.off()
+    gpat = paste0(mypattern, ".*\\.png")
+    pngs = list.files(path = tempdir(), pattern = gpat, full.names = TRUE)
+    mystr = paste(pngs, collapse = " ", sep = "")
+    system(sprintf("convert %s -quality 100 %s %s", mystr, pdfname, copts))
+}
+
+
+res = mypdf("~/tmp/for_chris.pdf", res = 600, height = 7, width = 7, units = "in")
+lapply(seq_along(ml),function(i){
+  pcor(i)
+})
+mydev.off(pdfname = res$pdfname, mypattern = res$mypattern)
+dev.off()
+
+
 
 ## taking RA as an example
 
@@ -173,14 +251,18 @@ ex[ex$disease=='bb:20002_1464:self_reported_rheumatoid_arthritis',disease:='bb_R
 ex[,lp:=-log(p.val)]
 ## take the p.vals of the snps with top 10% pwi
 n<-1
-top.ex<-ex[ex$pwi > quantile(ex$pwi,prob=1-n/100),]
+top.ex<-ex[ex$lp > quantile(ex$lp,prob=1-n/100),]
 
-m<-melt(top.ex,id.vars=c('id','name','disease'),measure.vars='lp')
+m<-melt(top.ex,id.vars=c('id','name','disease'),measure.vars='lor')
 fin<-dcast(m,id+name~disease+variable)
+fin<-subset(fin,!is.na(bb_RA_lor) & !is.na(RA_lor))
 
 #library(cowplot)
 
-ggplot(fin,aes(x=RA_lp,y=bb_RA_lp)) + geom_point() + theme_bw()
+ggplot(fin,aes(x=RA_lor,y=bb_RA_lor)) + geom_point() + theme_bw()
+cor(fin$RA_lor,fin$bb_RA_lor)
 
 
-cor(fin$RA_lp,fin$bb_RA_lp)
+## which id's don't seem to correlate
+opp<-fin[which(fin$RA_lor>0 & fin$bb_RA_lor<0),]$id
+## checked these and looks to be OK

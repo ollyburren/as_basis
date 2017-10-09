@@ -94,11 +94,17 @@ stats.filter[,c('theta.pval','theta.Z','n0','n1'):=list(2*(pnorm(abs(theta/se.th
 ## create the classic output that we need to include into the basis
 
 #id chr position risk.allele other.allele or p.val
-
-stats.filter[,c('risk.allele','other.allele','id'):=list(A1,A2,paste(chr,position,sep=':'))]
+## this appears to be the wrong way around
+#stats.filter[,c('risk.allele','other.allele','id'):=list(A1,A2,paste(chr,position,sep=':'))]
 ## find those that we need to flip
-stats.filter[which(stats.filter$or<1),c('or','risk.allele','other.allele'):=list(1/or,A2,A1)]
+#stats.filter[which(stats.filter$or<1),c('or','risk.allele','other.allele'):=list(1/or,A2,A1)]
 ## output
+
+stats.filter[,c('risk.allele','other.allele','id'):=list(A2,A1,paste(chr,position,sep=':'))]
+## find those that we need to flip
+stats.filter[which(stats.filter$or<1),c('or','risk.allele','other.allele'):=list(1/or,A1,A2)]
+## output
+
 
 trait<-paste(gsub('[.]+','_',sub('.*:Non\\.cancer\\.illness\\.code\\.\\.(.*)\\.RDS','\\1',basename(f))),'out',sep='.')
 setnames(stats.filter,c('theta.pval','rsid'),c('p.val','id'))
