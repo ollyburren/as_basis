@@ -28,7 +28,7 @@ if(!file.exists(tmpfile)){
     DT[,gh_ss:=gamma_hat_ss(Z,total)]
     DT[,gh_ss_pp:=gh_ss * pp]
     # examine what happens if we compute gh using maf ?
-    DT[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(or))]
+    DT[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(lor))]
     DT[,gh_maf_pp:=gh_maf * pp]
     #DT<-DT[!DT$disease %in% jia,]
     DT[,lp0:=log(1-approx.bf.z2(Z,maf,cases+controls,cases/(cases+controls),pi_1)),by=c('disease','ld.block')]
@@ -77,7 +77,7 @@ bb.DT[,Z:=qnorm(0.5 * p.val, lower.tail = FALSE) * sign(lor)]
 bb.DT[,gh_ss:=gamma_hat_ss(Z,total)]
 bb.DT[,gh_ss_pp:=gh_ss * pp]
 # examine what happens if we compute gh using maf ?
-bb.DT[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(or))]
+bb.DT[,gh_maf:=lor/gamma_hat_maf(controls,cases,maf,exp(lor))]
 bb.DT[,gh_maf_pp:=gh_maf * pp]
 setkey(bb.DT,'id')
 ## need to add weightings
@@ -166,7 +166,7 @@ lapply(seq_along(ml),function(i){
   plotter(i)
 })
 dev.off()
-
+stop()
 ## define a plotter that allows us to hilight bb dataset on the basis
 
 bb_plotter<-function(bb_trait){
