@@ -1,0 +1,40 @@
+source('~/git/as_basis/R/pipeline/as_basis_functions.R')
+
+## import GWAS data for basis
+
+## support files
+support.dir<-'/scratch/ob219/as_basis/support_tab'
+# reference allele frequencies
+ref_af_file<-file.path(support.dir,'as_basis_snps.tab')
+ld_file<-file.path(support.dir,'all.1cM.tab')
+m_file<-file.path(support.dir,'as_basis_manifest.tab')
+
+## dir where all preprocessed gwas files are.
+## we expect variants to be reflected in ref_af_file, have there OR aligned and be defined in the manifest file
+gwas_data_dir <- '/home/ob219/scratch/as_basis/gwas_stats/input_files'
+
+basis.DT<-get_gwas_data(m_file,ref_af_file,ld_file,gwas_data_dir)
+
+## compute the two shrinkages
+
+## MAF first
+## to ways to do this 1 is to compute for each basis trait and then take the average
+
+gh_maf.DT<-basis.DT[,list(pid=pid,maf_se=maf_se(n-n1,n1,maf,or))][,list(mean_maf_se=mean(maf_se)),by=pid]
+## add this black but need to save as an intermediate
+basis.DT<-basis.DT[gh_maf.DT]
+
+## second way to do it is to compute based on function fitting.
+
+basis.DT[,est_maf_se:=maf_se_estimate(maf)]
+
+## plot to check things
+
+library(ggplot2)
+## take a random sample of snps
+keep<-sample(gh_maf.DT$pid,10000)
+toplot<-data.table::melt(unique(basis.DT[,.(pid,maf,mean_maf_se,est_maf_se)],by='pid'),id.vars=c('pid','maf'),measure.vars=c('mean_maf_se','est_maf_se'))
+sdata<-toplot[toplot$pid %in% keep,]
+ggplot(sdata,aes(x=maf,y=value,color=variable)) + geom_point()
+
+## looks as if shrinkage is out by a factor of two between the two methods.
