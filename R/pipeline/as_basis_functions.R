@@ -1,17 +1,8 @@
 library(data.table)
 library(GenomicRanges)
+library(magrittr)
 
 
-#' Compute minor allele frequency shrinkage
-#' \code{maf_shrinkage} computes a shrinkage metric for a given list of minor allele frequencies'
-#'
-#' @param f a vector of minor allele frequencies taken from some reference population.
-#' @return a vector of shrinkage metrics
-#' @export
-
-maf_shrinkage <- function(f){
-  1/sqrt(f * (1-f))
-}
 
 #' helper function to sum logs without loss of precision
 #' \code{logsum} sums logs without loss of precision
@@ -65,7 +56,7 @@ wakefield_pp <- function(p,f, N, s,pi=1e-4,sd.prior=0.2) {
 #' @param f a vector of minor allele frequencies taken from some reference population.
 #' @param N a scalar or vector for total sample size of GWAS
 #' @param s a scalar representing the proportion of cases (n.cases/N)
-#' @param pi a scalar representing the prior probability (DEFAULT \eqn{1 \times 10^{-4}})
+#' @param pi_i a scalar representing the prior probability (DEFAULT \eqn{1 \times 10^{-4}})
 #' @param sd.prior a scalar representing our prior expectation of \eqn{\beta} (DEFAULT 0.2).
 #' The method assumes a normal prior on the population log relative risk centred at 0 and the DEFAULT
 #' value sets the variance of this distribution to 0.04, equivalent to a 95\%  belief that the true relative risk
@@ -73,7 +64,7 @@ wakefield_pp <- function(p,f, N, s,pi=1e-4,sd.prior=0.2) {
 #' @return a vector of posterior probabilities.
 #' @export
 
-wakefield_null_pp <- function(p,f, N, s,pi=1e-4,sd.prior=0.2) {
+wakefield_null_pp <- function(p,f, N, s,pi_i=1e-4,sd.prior=0.2) {
     if(length(p) != length(f))
       stop("p and f must be vectors of the same size")
     # compute V
@@ -84,24 +75,134 @@ wakefield_null_pp <- function(p,f, N, s,pi=1e-4,sd.prior=0.2) {
     r <- sd.prior^2 / (sd.prior^2 + V)
     ## Approximate BF  # I want ln scale to compare in log natural scale with LR diff
     lABF = 0.5 * (log(1-r) + (r * z^2))
-    po = exp(lABF + log(p) - log(1-p))
+    po = exp(lABF + log(pi_i) - log(1-pi_i))
     pp = po/(1+po)
 }
 
 #' This function computes the posterior prob that a SNP is causal in a set of traits
-#' \code{basis_shrinkage} computes the posterior probability that a SNP is causal across a set of traits
+#' \code{basis_pp} computes the posterior probability that a SNP is causal across a set of traits
 #'
 #' @param bf a vector of approximate Bayes Factors using Wakefield's method.
 #' @param a scalar or vector of posterior probabilites
-#' @return a vector of combined posterior probabilities
+#' @return pi a scalar empirical prior
 
-basis_shrinkage<-function(BF,pi_i){
+basis_pp<-function(BF,emp_pi){
   lABF<-log(BF)
   tABF <- c(lABF,0)
-  vpi_i<-c(rep(pi_i,length(lABF)),1)
+  vpi_i<-c(rep(emp_pi,length(lABF)),1)
   sBF <- logsum(tABF + log(vpi_i))
-  exp(lABF+log(pi_i)-sBF)
+  exp(lABF+log(emp_pi)-sBF)
 }
+
+#' This function computes an approximate Bayes Factor for whether a given SNP is causal
+#' in a set of basis traits assuming a single causal variant.
+#' \code{bayesian_shrinkage} computes an approximate Bayes Factor for whether a given SNP is causal
+#' in a set of basis traits assuming a single causal variant. Using an emprically derived
+#' prior computes a posterior probability.
+#'
+#' @param DT basis data.table object
+#' @param tquant a scalar representing quantile on which to truncate infinite Bayes Factors (DEFAULT 0.9999)
+#' @return data.table object
+
+bayesian_shrinkage<-function(DT,tquant=0.9999){
+  tmp<-DT[,list(pid=pid,lp0=log(1-wakefield_null_pp(p.val,maf,n,n1/n))),by=c('trait','ld.block')]
+  # if pvalue is 1 (as OR is 1) we get numerical errors / NA. Removing is fine as the they should be 0 therefore 1
+  tmp<-tmp[,list(q_i=1-exp(sum(lp0,na.rm=TRUE))),by=c('ld.block','pid')]
+  ## compute an empirical prior
+  emp<-mean(tmp$q_i)
+  ## prior odds
+  po<-emp/(1-emp)
+  ## note that emp is for h1 that beta != 0 therefore we need to take reciprocal as equation assumes pi_0 - see notes
+  po<-1/po
+  tmp[,uABF:=po*(q_i/(1-q_i))]
+  ## set an upper limit to BF (here its upper 0.0001 percentile)
+  BIG<-quantile(tmp[is.finite(tmp$uABF),]$uABF,prob=0.9999)
+  tmp[is.infinite(uABF) | uABF > BIG, uABF:=BIG]
+  tmp[,bshrink:=basis_pp(uABF,emp),by=ld.block][,.(bshrink),by=pid]
+}
+
+#' This function computes an estimate of allele count of unexposed controls
+#' \code{ca} estimate of allele count of unexposed controls
+#'
+#' @param n0 a vector or scalar of number of control samples
+#' @param f a vector of reference allele frequencies
+#' @return a numeric vector
+
+ca<-function(n0,f){
+    n0*(1-f)
+}
+
+#' This function computes an estimate of allele count of  exposed controls
+#' \code{cb} estimate of allele count of exposed controls
+#'
+#' @param n0 a vector or scalar of number of control samples
+#' @param f a vector of reference allele frequencies
+#' @return a numeric vector
+
+cb<-function(n0,f){
+    n0*f
+}
+
+#' This function computes an estimate of allele count of  unexposed cases
+#' \code{cc} estimate of allele count of unexposed cases
+#'
+#' @param n1 a vector or scalar of number of control samples
+#' @param a a vector of estimates for allele count of  unexposed controls
+#' @param b a vector of estimates for allele count of  exposed controls
+#' @return a numeric vector
+#' see also \code{\link{ca}} and \code{\link{cb}}
+
+cc<-function(n1,a,b,theta){
+    (n1*a)/(a+(b*theta))
+}
+
+#' This function computes an estimate of allele count of  exposed cases
+#' \code{cc} estimate of allele count of exposed cases
+#'
+#' @param n1 a vector or scalar of number of control samples
+#' @param a a vector of estimates for allele count of  unexposed controls
+#' @param b a vector of estimates for allele count of  exposed controls
+#' @return a numeric vector
+#' see also \code{\link{ca}} and \code{\link{cb}}
+
+cd<-function(n1,a,b,theta){
+    (n1*b)/(a+(b*theta))
+}
+
+
+#' This function standard error due to minor allele frequency empirically
+#' \code{maf_se_empirical} emprically estimate the standard error that is due to minor allele frequency
+#' \eqn{\sqrt{\frac{1}{a} +  \frac{1}{b} + \frac{1}{b} + \frac{1}{b} }}
+#'
+#' @param n0 a vector or scalar of number of control samples
+#' @param n1 a vector or scalar of number of case samples
+#' @param f a vector of reference allele frequencies
+#' @param a vector of Odds Ratios
+#' @returns a numeric vector
+#' see also \code{\link{ca}}, \code{\link{cb}}, \code{\link{cc}} and \code{\link{cd}}
+
+maf_se_empirical<-function(n0,n1,f,theta){
+    n<-n0+n1
+    a<-ca(n0,f)/n
+    b<-cb(n0,f)/n
+    c<-cc(n1,a,b,theta)/n
+    d<-cd(n1,a,b,theta)/n
+    recip.sm<-do.call('cbind',lapply(list(a,b,c,d),function(fi) 1/fi))
+    sqrt(rowSums(recip.sm))
+    #return(log(theta)/res)
+}
+
+#' Compute minor allele frequency shrinkage
+#' \code{maf_se_estimate} computes a shrinkage metric for a given list of minor allele frequencies'
+#'
+#' @param f a vector of minor allele frequencies taken from some reference population.
+#' @return a vector of shrinkage metrics
+#' @export
+
+maf_se_estimate <- function(f){
+  1/sqrt(f * (1-f))
+}
+
 
 #' convert Z score to a signed p value
 
@@ -118,19 +219,6 @@ z2p <- function(z){
   2* pnorm(abs(z), lower.tail = FALSE)
 }
 
-# This function reads a GWAS into a data table
-
-read_GWAS <- function(f,label){
-  #if label is missing just use the filename
-  if(!file.exist(f))
-    stop(sprintf("Cannot find file %s",f))
-  DT<-fread(f)
-  if(missing(label))
-    label<-gsub(".csv","",basename(f),fixed=TRUE)
-  DT[,trait:=label]
-  return(DT)
-}
-
 # this function reads in maf data
 
 add_ref_maf <- function(snp_support_file,DT){
@@ -144,7 +232,7 @@ add_ref_maf <- function(snp_support_file,DT){
   tmp<-DT[ss]
   if(nrow(tmp)!=nrow(DT))
     stop("Something went wrong perhaps there are duplicates (by position) in your snp support file or in GWAS input")
-  #return(tmp)
+  return(tmp)
 }
 
 add_ld_block <- function(ld_support_file,DT){
@@ -167,7 +255,7 @@ get_gwas_data <- function(manifest_file,snp_manifest_file,ld_support_file,data_d
   }else{
     man<-fread(manifest_file)[trait %in% trait_list,]
   }
-  man[,file:=file.path(data.dir,file)]
+  man[,file:=file.path(data_dir,file)]
   ret<-rbindlist(lapply(1:nrow(man),function(i){
     message(sprintf("Processing %s",man[i,]$trait))
     tDT<-fread(man[i,]$file)
@@ -177,10 +265,64 @@ get_gwas_data <- function(manifest_file,snp_manifest_file,ld_support_file,data_d
   setkey(ret,pid)
   ## next add minor allele frequencies
   message("Adding reference minor allele freq.")
-  add_ref_maf(snp_manifest_file,ret)
+  ret<-add_ref_maf(snp_manifest_file,ret)
   message("Assigning LD Blocks")
-  add_ld_block(ld_support_file,ret)
+  ret<-add_ld_block(ld_support_file,ret)
   ret
 }
 
-## tomorrow use the above routine in a script and then compute the necessary other stats
+
+#' This function computes various shrinkage metrics
+#' \code{compute_shrinkage_metrics} computes various shrinkage metrics
+#'
+#' @param data.table object for basis traits as returned by \code{\link{get_gwas_data}}
+#' @returns a data.table object.
+#' \enumerate{
+#' \item pid - unique id using chr and position (useful for merging back)
+#' \item bshrink - Bayesian shrinkage based on association across all basis traits
+#' \item emp_maf_se - empirically derived standard error for MAF
+#' \item est_maf_se - estimated standard error for MAF
+#' \item emp_shrinkage - overall shrinkage using emp_maf_se
+#' \item est_shrinkage - overall shrinkage using est_maf_se
+#' }
+#' see also \code{\link{maf_se_empirical}}, \code{\link{maf_se_estimate}} and \code{\link{bayesian_shrinkage}}.
+
+compute_shrinkage_metrics<-function(DT){
+  message("Computing maf_se_empirical")
+  emp_maf_se.DT<-DT[,list(pid=pid,emp_maf_se=maf_se_empirical(n-n1,n1,maf,or))][,list(emp_maf_se=mean(emp_maf_se)),by=pid]
+  setkey(emp_maf_se.DT,pid)
+  ## second way to do it is to compute based on function fitting.
+  message("Computing maf_se_estimated")
+  est_maf_se.DT<-unique(DT[,list(est_maf_se=maf_se_estimate(maf)),by=pid])
+  setkey(est_maf_se.DT,pid)
+  maf_se.DT<-emp_maf_se.DT[est_maf_se.DT]
+  ## next compute basis shrinkage vector
+  message("Computing Bayesian shrinkage")
+  bs.DT<-bayesian_shrinkage(basis.DT)
+  setkey(bs.DT,pid)
+  shrinkage.DT<-bs.DT[maf_se.DT]
+  shrinkage.DT[,c('emp_shrinkage','est_shrinkage'):=list(bshrink/emp_maf_se,bshrink/est_maf_se),by=pid]
+  setkey(shrinkage.DT,pid)
+  return(shrinkage.DT)
+}
+
+#' This function creates a trait snp matrix
+#' \code{create_ts_matrix} creates a trait snp matrix that is suitable for basis creation and projection
+#'
+#' @param bDT data.table object for basis traits as returned by \code{\link{get_gwas_data}}
+#' @param sDT data.table object of matching shrinkage estimates returned by \code{\link{compute_shrinkage_metrics}}
+#' @oaram method scalar vector (either emp or est), emp uses empirically generated MAF SE, est uses and estimate.
+#' @returns a matrix.
+
+create_ds_matrix <- function(bDT,sDT,method=c('emp','est')){
+  if(missing(method)){
+    method='emp'
+  }
+  message(sprintf("Using %s",method))
+  vmethod = sprintf("%s_shrinkage",method)
+  stmp<-sDT[,c('pid',vmethod),with=FALSE]
+  tmp<-bDT[stmp]
+  tmp$metric <- tmp[[vmethod]] * log(tmp$or)
+  B <- dcast(tmp,pid ~ trait,value.var='metric')
+  return(as.matrix(B[,-1]) %>% t())
+}
