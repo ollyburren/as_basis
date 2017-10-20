@@ -1,4 +1,4 @@
-#1_merge_all.GWAS.R
+# 1_merge_all.GWAS.R
 
 This R script reads in a directory of GWAS results
 
@@ -66,3 +66,7 @@ Note we expect all the OR to be with respect to the risk allele (i.e > 1)
 ## To Do
 
 This currently works on all traits at the same time which means that it does not scale to a HPC context. Need to rewrite so that given the intermediate file we can parallelise by trait. One idea is to have a specific function that works out which SNPs are shared across traits as this is one of the main drivers for processing all traits at once. If we also added REF and ALT alleles to the intermediate file then we would be assured aligned OR.
+
+# 2_compute_metric.R
+
+This takes the previous output file and computes shrinkage metrics.

@@ -180,6 +180,7 @@ cd<-function(n1,a,b,theta){
 #' @param a vector of Odds Ratios
 #' @returns a numeric vector
 #' see also \code{\link{ca}}, \code{\link{cb}}, \code{\link{cc}} and \code{\link{cd}}
+#' @export
 
 maf_se_empirical<-function(n0,n1,f,theta){
     n<-n0+n1
@@ -200,11 +201,18 @@ maf_se_empirical<-function(n0,n1,f,theta){
 #' @export
 
 maf_se_estimate <- function(f){
-  1/sqrt(f * (1-f))
+  #1/sqrt(f * (1-f))
+  sqrt(1/f + 1/(1-f))
 }
 
 
-#' convert Z score to a signed p value
+#' convert p value  to a signed Z score
+#' \code{p2z} p value to a signed Z score
+#'
+#' @param p a vector of p values
+#' @param lor a vector of log odds ratios
+#' @return a vector of signed Z scores
+#' @export
 
 p2z <- function(p,lor){
   z <- qnorm(0.5 * p.val, lower.tail = FALSE)
@@ -214,6 +222,11 @@ p2z <- function(p,lor){
 }
 
 #' convert z to p value
+#' \code{p2z} z to p value
+#'
+#' @param z a vector of Z scores
+#' @return a vector of p values
+#' @export
 
 z2p <- function(z){
   2* pnorm(abs(z), lower.tail = FALSE)
