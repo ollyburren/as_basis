@@ -21,6 +21,7 @@ basis.mat.emp<-rbind(basis.mat.emp,control=rep(0,ncol(basis.mat.emp)))
 pc.emp <- prcomp(basis.mat.emp,center=TRUE,scale=FALSE)
 ## project on biobank to see if we can recreate Chris' figure.
 bb_traits<-fread(m_file)[grep('bb_',trait),]$trait
+bb_traits<-c(bb_traits,'breast_cancer')
 bb.DT<-get_gwas_data(m_file,ref_af_file,ld_file,gwas_data_dir,bb_traits)
 bb.mat.emp<-create_ds_matrix(bb.DT,shrink.DT,'emp')
 pred.emp <- predict(pc.emp,newdata=bb.mat.emp)
