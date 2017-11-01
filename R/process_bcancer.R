@@ -74,8 +74,8 @@ library(cupcake)
 
 res<-align_alleles(bfo,bsnps,check=TRUE)
 ## or are flipped thus we need 1/or !!
-#res<-res[,.(id,chr,position,p.val=sprintf("%.4f",p.val),or=sprintf("%.4f",1/or))]
-res<-res[,.(id,chr,position,p.val=sprintf("%.4f",p.val),or=sprintf("%.4f",or))]
+res<-res[,.(id,chr,position,p.val=sprintf("%.4f",p.val),or=sprintf("%.4f",1/or))]
+#res<-res[,.(id,chr,position,p.val=sprintf("%.4f",p.val),or=sprintf("%.4f",or))]
 options(scipen=999)
 write.table(res,file='/home/ob219/scratch/as_basis/gwas_stats/input_files/breast_cancer.tab',sep="\t",row.names=FALSE,quote=FALSE)
 options(scipen=0)

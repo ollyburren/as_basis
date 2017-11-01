@@ -108,7 +108,7 @@ all.sims<-rbindlist(all.sims)
 
 act<-pc.emp$x
 tmp.rn<-rownames(act)
-act<-data.table(act
+act<-data.table(act)
 all<-rbind(act[,c('trait','sim'):=list(tmp.rn,FALSE)],
   all.sims[,c('trait','sim'):=list(mani$trait,TRUE)])
 plot <- melt(all,id.vars=c('trait','sim'))

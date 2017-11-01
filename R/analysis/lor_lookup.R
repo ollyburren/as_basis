@@ -10,7 +10,7 @@ nsims <- 1e6
 n.sample <- 2500
 or.prior <- 0.01
 
-## support.dir<-'/scratch/ob219/as_basis/support_tab'
+support.dir<-'/scratch/ob219/as_basis/support_tab'
 ## gwas_data_dir <- '/home/ob219/scratch/as_basis/gwas_stats/input_files'
 ## ref_af_file<-file.path(support.dir,'as_basis_snps.tab')
 ## ld_file<-file.path(support.dir,'all.1cM.tab')
@@ -24,14 +24,20 @@ or.prior <- 0.01
 ##      mean(sDT$abs.or>or.threshold)
 ## }))
 
+if(!file.exists(file.path(support.dir,'lor_posterior.tab'))){
+  af <- seq(0.01,0.99,by=0.01)
+  library(parallel)
+  options(mc.cores=6)
+  results <- data.table(cbind(f=af,do.call("rbind",mclapply(af, function(f){
+    message(sprintf("Processing %f",f))
+    lor_f(f,n.sample,nsims,or.threshold,or.prior)
+  }))))
+  write.table(results,file=file.path(support.dir,'lor_posterior.tab'),sep="\t",row.names=FALSE,quote=FALSE)
+}else{
+  results <- fread(file.path(support.dir,'lor_posterior.tab'))
+}
 
-af <- seq(0.01,0.99,by=0.01)
-library(parallel)
-options(mc.cores=6)
-results <- data.table(cbind(f=af,do.call("rbind",mclapply(af, function(f){
-  message(sprintf("Processing %f",f))
-  lor_f(f,n.sample,nsims,or.threshold,or.prior)
-}))))
+
 
 library(ggplot2)
 colnames(results) <- make.unique(colnames(results))
