@@ -27,8 +27,8 @@ library(cupcake)
 
 ## read in samples file
 #args <- list(
-#  sample.file = '/home/ob219/scratch/as_basis/jia_ind_analysis/splits/xaz',
-#  chr = '1',
+#  samplefile = '/home/ob219/scratch/as_basis/jia_ind_analysis/splits/xaz',
+#  chr = '22',
 #  out = '/home/ob219/scratch/as_basis/jia_ind_analysis/ind_basis'
 #)
 samples <- scan(file=args$samplefile,"character()")
@@ -56,11 +56,40 @@ names(mods) <- gtn
 
 ## next load in some genotype data
 
+#
+
+
+
 gwas_data_dir <- '/home/ob219/scratch/as_basis/gwas_stats/input_files'
-ref_af_file<-file.path(support.dir,'as_basis_snps_with_alleles.tab')
+ref_af_file<-file.path(support.dir,'as_basis_snps_with_af.tab')
 basis.snps <- fread(ref_af_file)[,pid:=paste(chr,position,sep=':')]
+#basis.snps <- fread(ref_af_file)
+setkey(basis.snps,pid)
+
+# really we need to know which allele goes with which otherwise this won't work
+# need a different support file
+
+#(load("all_EUR_support.RData"))
+# subset to just as.basis snps
+#all.eur[,pid:=paste(chr,position,sep=':')]
+#setkey(all.eur,pid)
+#all.eur.basis <- subset(all.eur,pid %in% basis.snps$pid)
+#write.table(all.eur.basis,file='/scratch/ob219/as_basis/support_tab/as_basis_snps_with_af.tab',quote=FALSE,row.names=FALSE,sep="\t")
+
 DTl <- split(basis.snps,basis.snps$chr)
 library(annotSnpStats)
+
+af_wrt_a2 <- function(DT){
+  #AF is wrt to ALT
+  DT[allele.1==REF & allele.2==ALT,flip:=0]
+  DT[allele.1==ALT & allele.2==REF,flip:=1]
+  if(any(is.na(DT$flip)))
+    stop("Need a revcom routine")
+  DT[flip==0,AF.a2:=AF]
+  DT[flip==1,AF.a2:=1-AF]
+  DT
+}
+
 
 ## loop over each chromosome and create a matrix of expected log OR
   target.chr <- args$chr
@@ -83,7 +112,10 @@ library(annotSnpStats)
  #sm <- as(X[sample.idx,snp.idx],"SnpMatrix")
  #For each SNP get lor for each snp config
  gwas.snps <- gwas.snps[order %in% snp.idx,]
- gwas.snps <- gwas.snps[,c('lor.00','lor.01','lor.11'):=lapply(mods,predict,AF)]
+ # here we need to fix the AF as it is wrt to REF ALT not a1 and a2
+ gwas.snps <- af_wrt_a2(gwas.snps)
+ #note we use AF.a2
+ gwas.snps <- gwas.snps[,c('lor.00','lor.01','lor.11'):=lapply(mods,predict,AF.a2)]
  Xs <- data.table((apply(matrix(sm,nrow(sm),ncol=ncol(sm)),2,as.character)))
  setnames(Xs,colnames(sm))
  Xs[,sample:=rownames(sm)]
