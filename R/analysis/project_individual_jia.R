@@ -26,11 +26,13 @@ args = parse_args(opt_parser)
 library(cupcake)
 
 ## read in samples file
-#args <- list(
-#  samplefile = '/home/ob219/scratch/as_basis/jia_ind_analysis/splits/xaz',
-#  chr = '22',
-#  out = '/home/ob219/scratch/as_basis/jia_ind_analysis/ind_basis'
-#)
+if(FALSE){
+args <- list(
+  samplefile = '/home/ob219/scratch/as_basis/jia_ind_analysis/splits/xaa',
+  chr = '22',
+  out = '/home/ob219/scratch/as_basis/jia_ind_analysis/ind_basis'
+)
+}
 samples <- scan(file=args$samplefile,"character()")
 
 dat <- fread(lor.lu.file,skip=1L)[,.(V1,V2,V3,V4)]
@@ -55,15 +57,10 @@ mods<-lapply(paste('lor',gtn,sep='.'),function(x){
 names(mods) <- gtn
 
 ## next load in some genotype data
-
-#
-
-
-
 gwas_data_dir <- '/home/ob219/scratch/as_basis/gwas_stats/input_files'
 ref_af_file<-file.path(support.dir,'as_basis_snps_with_af.tab')
-basis.snps <- fread(ref_af_file)[,pid:=paste(chr,position,sep=':')]
-#basis.snps <- fread(ref_af_file)
+#basis.snps <- fread(ref_af_file)[,pid:=paste(chr,position,sep=':')]
+basis.snps <- fread(ref_af_file)
 setkey(basis.snps,pid)
 
 # really we need to know which allele goes with which otherwise this won't work
@@ -77,12 +74,15 @@ setkey(basis.snps,pid)
 #write.table(all.eur.basis,file='/scratch/ob219/as_basis/support_tab/as_basis_snps_with_af.tab',quote=FALSE,row.names=FALSE,sep="\t")
 
 DTl <- split(basis.snps,basis.snps$chr)
+DTl <-  lapply(DTl,setkey,key='pid')
 library(annotSnpStats)
 
 af_wrt_a2 <- function(DT){
   #AF is wrt to ALT
-  DT[allele.1==REF & allele.2==ALT,flip:=0]
-  DT[allele.1==ALT & allele.2==REF,flip:=1]
+  #DT[allele.1==REF & allele.2==ALT,flip:=0]
+  #DT[allele.1==ALT & allele.2==REF,flip:=1]
+  DT[allele.1==REF & allele.2==ALT,flip:=1]
+  DT[allele.1==ALT & allele.2==REF,flip:=0]
   if(any(is.na(DT$flip)))
     stop("Need a revcom routine")
   DT[flip==0,AF.a2:=AF]
@@ -92,14 +92,17 @@ af_wrt_a2 <- function(DT){
 
 
 ## loop over each chromosome and create a matrix of expected log OR
-  target.chr <- args$chr
-  gt.file <- file.path('/scratch/wallace/JIA-2017-data/',sprintf('annotsnpstats-%s.RData',target.chr))
-  message(sprintf("Loading %s",gt.file))
-  X <- get(load(gt.file))
+ target.chr <- args$chr
+ gt.file <- file.path('/scratch/wallace/JIA-2017-data/',sprintf('annotsnpstats-%s.RData',target.chr))
+ message(sprintf("Loading %s",gt.file))
+ X <- get(load(gt.file))
 
  gwas.snps <- data.table(snps(X))[,c('pid','order'):=list(paste(chromosome,position,sep=':'),1:.N),]
- snp.idx <- which(gwas.snps$pid %in% DTl[[target.chr]]$pid)
- if(length(snp.idx) != nrow(DTl[[target.chr]]))
+ setkey(gwas.snps,pid)
+ gwas.snps <- gwas.snps[DTl[[target.chr]]]
+ snp.idx <- sort(gwas.snps$order)
+
+ if(nrow(gwas.snps) != nrow(DTl[[target.chr]]))
   stop("Not all SNPs in the basis")
  ## only care about controls
  sample.idx <- which(samples(X)$ID_1 %in% samples)
@@ -107,15 +110,23 @@ af_wrt_a2 <- function(DT){
   stop("Missing some some samples in gt file !")
  message("Converting to snpMatrix object")
  sm<-as(X,"SnpMatrix")
+
  sm <- sm[sample.idx,snp.idx]
  ## This is super slow perhaps convert to a snpMatrix object ?
  #sm <- as(X[sample.idx,snp.idx],"SnpMatrix")
  #For each SNP get lor for each snp config
- gwas.snps <- gwas.snps[order %in% snp.idx,]
+ #gwas.snps <- gwas.snps[order %in% snp.idx,]
+
+ gwas.snps <- gwas.snps[,AF:=a2.f]
  # here we need to fix the AF as it is wrt to REF ALT not a1 and a2
  gwas.snps <- af_wrt_a2(gwas.snps)
+ gwas.snps[,AF.a2:=round(AF.a2,digits=2)]
+ ## avoid asymptotics
+ gwas.snps[AF.a2==0,AF.a2:=0.01]
+ gwas.snps[AF.a2==1,AF.a2:=0.99]
  #note we use AF.a2
- gwas.snps <- gwas.snps[,c('lor.00','lor.01','lor.11'):=lapply(mods,predict,AF.a2)]
+ gwas.snps <- gwas.snps[,c('lor.00','lor.01','lor.11'):=lapply(mods,predict,round(AF.a2,digits=2))]
+
  Xs <- data.table((apply(matrix(sm,nrow(sm),ncol=ncol(sm)),2,as.character)))
  setnames(Xs,colnames(sm))
  Xs[,sample:=rownames(sm)]
