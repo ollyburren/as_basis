@@ -88,4 +88,7 @@ if(FALSE){
   ggplot(sman,aes(x=beta,y=mean.proj.lor,color=flag)) + geom_point() + geom_smooth(method="lm") +
   geom_abline(intercept=0,slope=1,color='red',lty=2) + theme_bw() + xlab("Case/Control Beta") +
   ylab("Mean(Beta.proj)")
+  ggplot(sman,aes(x=beta,y=mean.proj.lor)) + geom_point() + geom_smooth(method="lm") +
+  geom_abline(intercept=0,slope=1,color='red',lty=2) + theme_bw() + xlab("Case/Control Beta") +
+  ylab("Mean(Beta.proj)")
 }
