@@ -174,3 +174,9 @@ library(ggplot2)
 ## if we compare ERA projections of PC2 with projections for other subtypes is that significant ?
 ft <- final[class=='individual' & pc=='PC2' & !trait %in% c('cc','missing','UnA'),]
 t.test(ft[trait=='ERA',]$value,mu=final[class=='control' & sample=='ERA_control' & pc=='PC2',]$value)
+
+test.jia.traits <- c('EO','ERA','PO','PsA','RFneg','RFpos','sys')
+rbindlist(lapply(test.jia.traits,function(jt){
+  tt <- t.test(ft[trait==jt,]$value,mu=final[class=='control' & sample=='ERA_control' & pc=='PC2',]$value)
+  data.table(trait=jt,p.val=tt$p.value)
+}))
