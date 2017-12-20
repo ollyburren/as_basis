@@ -32,7 +32,9 @@ ml<-list(
   RA = 'bb_RA',
   SLE = 'bb_SLE',
   T1D = 'bb_T1D',
-  UC = 'bb_UC'
+  UC = 'bb_UC',
+  PBC = 'PBC',
+  PSC = 'PSC'
 )
 g <- function(M){
     M <- cbind(as.data.table(M),trait=rownames(M))
@@ -43,15 +45,33 @@ g <- function(M){
     M[trait=="control",compare:="control"]
     M
 }
-emp<-g(emp)
+emp<-g(emp)[,is.biobank:=FALSE]
+emp[grep("^bb",trait),is.biobank:=TRUE]
+emp[,is.imb.ai:=compare %in% names(ml)]
+emp[,glabel:=trait]
+emp[is.imb.ai==FALSE,glabel:='']
+emp[trait=='control',glabel:='CONTROL']
+emp[,glabel:=gsub("jia\\_","",trait)]
 ggplot(emp,aes(x=PC1,y=PC2,color=compare,label=trait)) + geom_point() + geom_text() + theme_bw() + ggtitle('Empirical MAF SE shrinkage')
 ## what happens if we use estimate instead ?
-basis.mat.est <- create_ds_matrix(basis.DT,shrink.DT,'est')
-## need to add control where beta is zero
-basis.mat.est<-rbind(basis.mat.est,control=rep(0,ncol(basis.mat.est)))
-pc.est <- prcomp(basis.mat.est,center=TRUE,scale=FALSE)
-jia.mat.est<-create_ds_matrix(jia.DT,shrink.DT,'est')
-pred.emp <- predict(pc.est,newdata=jia.mat.est)
-est<-rbind(pc.emp$x,pred.emp)
-est<-g(est)
-ggplot(est,aes(x=PC1,y=PC2,color=compare,label=trait)) + geom_point() + geom_text() + theme_bw() + ggtitle('Estimate MAF SE shrinkage')
+library(cowplot)
+library(ggrepel)
+PC1.var<-signif(summary(pc.emp)[['importance']][2,]["PC1"]*100,digits=3)
+PC2.var<-signif(summary(pc.emp)[['importance']][2,]["PC2"]*100,digits=3)
+ppf<-ggplot(emp,aes(x=PC1,y=PC2,color=is.imb.ai,label=glabel)) + geom_point(size=3) + geom_text_repel()   +
+scale_color_manual(guide=FALSE,values=c('black','grey')) + scale_alpha_discrete(guide=FALSE,range=c(0.3,1)) + coord_cartesian(xlim=c(-0.15,0.16)) +
+xlab(sprintf("%s (%.1f%%)",'PC1',PC1.var)) + ylab(sprintf("%s (%.1f%%)",'PC2',PC2.var)) +  background_grid(major = "xy", minor = "none")
+save_plot("~/tmp/jia_plot.pdf",ppf)
+
+
+if(FALSE){
+  basis.mat.est <- create_ds_matrix(basis.DT,shrink.DT,'est')
+  ## need to add control where beta is zero
+  basis.mat.est<-rbind(basis.mat.est,control=rep(0,ncol(basis.mat.est)))
+  pc.est <- prcomp(basis.mat.est,center=TRUE,scale=FALSE)
+  jia.mat.est<-create_ds_matrix(jia.DT,shrink.DT,'est')
+  pred.emp <- predict(pc.est,newdata=jia.mat.est)
+  est<-rbind(pc.emp$x,pred.emp)
+  est<-g(est)
+  ggplot(est,aes(x=PC1,y=PC2,color=compare,label=trait)) + geom_point() + geom_text() + theme_bw() + ggtitle('Estimate MAF SE shrinkage')
+}

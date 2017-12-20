@@ -28,8 +28,8 @@ if(!TEST){
   message("IN TESTING MODE ======>!")
   trait <- 'jia_cc'
   args <- list(
-    target_dir = '/home/ob219/scratch/as_basis/jia_ind_analysis/ind_proj_aligned_fixed',
-    output_dir = '/home/ob219/scratch/as_basis/jia_ind_analysis/ind_proj_aligned_fixed/split/',
+    target_dir = '/scratch/ob219/as_basis/jia_ind_analysis//ind_proj_10_0.05_2500_1e+06',
+    output_dir = '/scratch/ob219/as_basis/jia_ind_analysis//ind_proj_10_0.05_2500_1e+06/split/',
     chunk_size = 50
   )
 }
@@ -112,7 +112,7 @@ basis.mat.emp<-rbind(basis.mat.emp,control=rep(0,ncol(basis.mat.emp)))
 pc.emp <- prcomp(basis.mat.emp,center=TRUE,scale=FALSE)
 
 
-input.dir <- '/home/ob219/scratch/as_basis/jia_ind_analysis/ind_proj_aligned_fixed/split/'
+input.dir <- '/scratch/ob219/as_basis/jia_ind_analysis//ind_proj_10_0.05_2500_1e+06/split/'
 in.files <- list.files(path=input.dir,pattern='*.RDS',full.names=TRUE)
 
 library(parallel)

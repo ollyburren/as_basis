@@ -5,7 +5,21 @@ library(cupcake)
 support.dir<-'/scratch/ob219/as_basis/support_tab'
 gwas_data_dir <- '/home/ob219/scratch/as_basis/gwas_stats/input_files'
 ref_af_file<-'/scratch/ob219/as_basis/support_tab/as_basis_snp_support.tab'
-out_dir <- '/scratch/ob219/as_basis/jia_ind_analysis/ind_proj_aligned_fixed'
+out_dir <- '/scratch/ob219/as_basis/jia_ind_analysis/'
+
+or.threshold <- 10
+nsims <- 1e6
+n.sample <- 2500
+or.prior <- 0.05
+support.dir <- '/scratch/ob219/as_basis/support_tab'
+lor.lu.file <- sprintf("lor_posterior_%g_%g_%g_%g.tab",or.threshold,or.prior,n.sample,nsims) %>%
+    file.path(support.dir,.)
+
+
+out_dir <- sprintf("ind_proj_%g_%g_%g_%g",or.threshold,or.prior,n.sample,nsims) %>%
+    file.path(out_dir,.)
+dir.create(out_dir, showWarnings = FALSE)
+
 
 comp<-function(cv){
   tmp<-cv
@@ -45,7 +59,6 @@ mclapply(fls,function(f){
   sdt[a1==comp(ref_a1) & a2==comp(ref_a2),flag:='match_rc']
   sdt[a1==comp(ref_a2) & a2==comp(ref_a1),flag:='flip_rc']
   ## Chris' code for assigning lor to individuals
-  lor.lu.file <- file.path(support.dir,'lor_posterior.tab')
   dat <- fread(lor.lu.file,skip=1L)[,.(V1,V2,V3,V4)]
   setnames(dat,c('f','lor.00','lor.01','lor.11'))
   lor <- as.matrix(dat[,-1])  # matrix, rows indexed by 100*AF, columns by gt 00/01/11
@@ -73,7 +86,6 @@ mclapply(fls,function(f){
 if(FALSE){
   library(data.table)
   library(ggplot2)
-  out_dir <- '/scratch/ob219/as_basis/jia_ind_analysis/ind_proj_aligned_fixed'
   dat<-readRDS(file.path(out_dir,"chr22.RDS"))
   sman<-dat$snps
   sman[,mean.proj.lor:=rowMeans(dat$proj.lor)]
