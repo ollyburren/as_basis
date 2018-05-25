@@ -28,8 +28,8 @@ if(!TEST){
   message("IN TESTING MODE ======>!")
   trait <- 'jia_cc'
   args <- list(
-    target_dir = '/scratch/ob219/as_basis/jia_ind_analysis//ind_proj_10_0.05_2500_1e+06',
-    output_dir = '/scratch/ob219/as_basis/jia_ind_analysis//ind_proj_10_0.05_2500_1e+06/split/',
+    target_dir = '/scratch/ob219/as_basis/jia_ind_analysis//ind_proj_2_0.01_2500_1e+06',
+    output_dir = '/scratch/ob219/as_basis/jia_ind_analysis//ind_proj_2_0.01_2500_1e+06/split/',
     chunk_size = 50
   )
 }

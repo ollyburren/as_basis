@@ -308,7 +308,9 @@ all.jia<-lapply(jia.fs,function(f){
 	tmp.out<-tmp[,c('rsid','chr','position','a1','a2','or','p.val'),with=FALSE]
 ## note that or is wrt allele2 sp flip
 	setnames(tmp.out,c('id','chr','position','a2','a1','or','p.val'))
-	tmp.out<-flip(tmp.out)
+	tmp.out[,or:=1/or]
+	#setnames(tmp.out,c('id','chr','position','a1','a2','or','p.val'))
+	tmp.outy<-flip(tmp.out)
 	formatOut(tmp.out)
 })
 names(all.jia)<-paste('jia',basename(gsub("\\.RDS","",jia.fs)),sep='_')

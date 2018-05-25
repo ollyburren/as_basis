@@ -13,11 +13,12 @@ m_file<-file.path(support.dir,'as_basis_manifest_with_jia_cc.tab')
 ## dir where all preprocessed gwas files are.
 ## we expect variants to be reflected in ref_af_file, have there OR aligned and be defined in the manifest file
 gwas_data_dir <- '/home/ob219/scratch/as_basis/gwas_stats/input_files'
-
-gwas_data_dir <- '/home/ob219/scratch/as_basis/gwas_stats/input_files'
 basis.DT<-get_gwas_data(m_file,ref_af_file,ld_file,gwas_data_dir)
 shrink.DT<-compute_shrinkage_metrics(basis.DT)
-
+basis.mat.emp <- create_ds_matrix(basis.DT,shrink.DT,'emp')
+## need to add control where beta is zero
+basis.mat.emp<-rbind(basis.mat.emp,control=rep(0,ncol(basis.mat.emp)))
+pc.emp <- prcomp(basis.mat.emp,center=TRUE,scale=FALSE)
 
 study1<-'jia_cc'
 study2<-'jia_ERA'
@@ -70,10 +71,6 @@ s1.sim <- simulate_study(study1.DT,snpstats.dir,shrink_beta=FALSE,n_sims=200,qui
 s2.sim <- simulate_study(study2.DT,snpstats.dir,shrink_beta=FALSE,n_sims=200,quiet=FALSE)
 ## think this should be done under the null where beta = 0 or or = 1
 
-basis.mat.emp <- create_ds_matrix(basis.DT,shrink.DT,'emp')
-## need to add control where beta is zero
-basis.mat.emp<-rbind(basis.mat.emp,control=rep(0,ncol(basis.mat.emp)))
-pc.emp <- prcomp(basis.mat.emp,center=TRUE,scale=FALSE)
 ## project on biobank to see if we can recreate Chris' figure.
 
 sim.DT<-rbind(s1.sim,s2.sim)

@@ -2,17 +2,20 @@
 
 library(optparse)
 
-
+TEST<-FALSE
 option_list = list(
         make_option(c("-f", "--file"), type="character", default=NULL,
               help="input RDS file to convert", metavar="character")
             )
-
-opt_parser = OptionParser(option_list=option_list);
-args = parse_args(opt_parser)
-if (is.null(args$file)){
-	print_help(opt_parser)
-	stop("At least one argument must be supplied (output file)", call.=FALSE)
+if(!TEST){
+  opt_parser = OptionParser(option_list=option_list);
+  args = parse_args(opt_parser)
+  if (is.null(args$file)){
+	   print_help(opt_parser)
+	    stop("At least one argument must be supplied (output file)", call.=FALSE)
+    }
+}else{
+  args <- list(file='/home/ob219/scratch/as_basis/bb/summary_stats//20002_1261:Non.cancer.illness.code..self.reported..multiple.sclerosis.RDS')
 }
 
 
@@ -100,17 +103,21 @@ stats.filter[,c('theta.pval','theta.Z','n0','n1'):=list(2*(pnorm(abs(theta/se.th
 #stats.filter[which(stats.filter$or<1),c('or','risk.allele','other.allele'):=list(1/or,A2,A1)]
 ## output
 
-stats.filter[,c('risk.allele','other.allele','id'):=list(A2,A1,paste(chr,position,sep=':'))]
+#stats.filter[,c('risk.allele','other.allele','id'):=list(A2,A1,paste(chr,position,sep=':'))]
 ## find those that we need to flip
-stats.filter[which(stats.filter$or<1),c('or','risk.allele','other.allele'):=list(1/or,A1,A2)]
+#stats.filter[which(stats.filter$or<1),c('or','risk.allele','other.allele'):=list(1/or,A1,A2)]
 ## output
-
+stats.filter[,pid:=paste(chr,position,sep=':')]
+out.DT <- stats.filter[,.(pid,A1,A2,or,theta.pval)]
 
 trait<-paste(gsub('[.]+','_',sub('.*:Non\\.cancer\\.illness\\.code\\.\\.(.*)\\.RDS','\\1',basename(f))),'out',sep='.')
-setnames(stats.filter,c('theta.pval','rsid'),c('p.val','id'))
-assign(eval(trait),stats.filter[,.(id,chr,position,risk.allele,other.allele,or,p.val)])
-fout<-paste('bb',field.code,gsub('\\.out','.RData',trait),sep=':')
-save(list=trait,file=file.path(out.dir,fout))
+setnames(out.DT,c('pid','a1','a2','or','p.value'))
+fout<-paste('bb',field.code,gsub('\\.out','.tab',trait),sep=':')
+write.table(out.DT,file=file.path(out.dir,fout),quote=FALSE,sep="\t",row.names=FALSE)
+#setnames(stats.filter,c('theta.pval','rsid'),c('p.val','id'))
+#assign(eval(trait),stats.filter[,.(id,chr,position,risk.allele,other.allele,or,p.val)])
+#fout<-paste('bb',field.code,gsub('\\.out','.RData',trait),sep=':')
+#save(list=trait,file=file.path(out.dir,fout))
 message(sprintf("Save %s to %s",trait,file.path(out.dir,fout)))
 
 if(FALSE){

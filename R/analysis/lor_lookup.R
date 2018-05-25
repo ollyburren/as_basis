@@ -23,8 +23,8 @@ support.dir<-'/scratch/ob219/as_basis/support_tab'
 ## or.prior <- mean(sapply(split(basis.DT,basis.DT$trait),function(sDT){
 ##      mean(sDT$abs.or>or.threshold)
 ## }))
-
-if(!file.exists(file.path(support.dir,'lor_posterior.tab'))){
+fname <- sprintf("lor_posterior_%g_%g_%g_%g.tab",or.threshold,or.prior,n.sample,nsims)
+if(!file.exists(file.path(support.dir,fname))){
   af <- seq(0.01,0.99,by=0.01)
   library(parallel)
   options(mc.cores=6)
@@ -32,15 +32,17 @@ if(!file.exists(file.path(support.dir,'lor_posterior.tab'))){
     message(sprintf("Processing %f",f))
     lor_f(f,n.sample,nsims,or.threshold,or.prior)
   }))))
-  write.table(results,file=file.path(support.dir,'lor_posterior.tab'),sep="\t",row.names=FALSE,quote=FALSE)
+  write.table(results,file=file.path(support.dir,fname),sep="\t",row.names=FALSE,quote=FALSE)
 }else{
-  results <- fread(file.path(support.dir,'lor_posterior.tab'))
+  results <- fread(file.path(support.dir,fname),header=TRUE)
 }
 
 
 
 library(ggplot2)
+library(cowplot)
 colnames(results) <- make.unique(colnames(results))
 m <- reshape2::melt(results,"f")
-ggplot(m[grep("%", m$variable,invert=TRUE),],
-       aes(x=f,y=value,col=variable,group=variable)) + geom_point() + geom_smooth() + labs(x="AF",y="log OR")
+ggplot(m[grep("%", m$variable,invert=TRUE),],aes(x=f,y=value,col=variable,group=variable)) +
+  geom_point() + labs(x="Allele Frequency",y="Posterior log(OR)") + background_grid(major = "xy", minor = "none") +
+  scale_color_manual(name="Genotype",labels=c("1/1","0/1|1/0","0/0"),values=c("11"='firebrick',"01"='black',"00"='dodgerblue'))

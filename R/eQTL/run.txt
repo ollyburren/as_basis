@@ -1,0 +1,1 @@
+Rscript /home/ob219/git/as_basis/R/eQTL/run_knight_lm_on_q.R

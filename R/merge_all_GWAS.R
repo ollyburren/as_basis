@@ -14,8 +14,8 @@ comp<-function(cv){
 }
 
 process.dir<-"/scratch/ob219/as_basis/gwas_stats/processed/"
-allele_freq_file <- '/scratch/ob219/as_basis/tmp/bb_all_or_shared_with_af.RData'
-final_output_file <- '/home/ob219/scratch/as_basis/merged_data/with_biobank_traits.RData'
+allele_freq_file <- '/scratch/ob219/as_basis/tmp/bb_all_or_shared_with_af_december2017.RData'
+final_output_file <- '/home/ob219/scratch/as_basis/merged_data/december2017.RData'
 
 if(!file.exists(allele_freq_file)){
 	adf<-list.files(path=process.dir,pattern='*.RData',full.names=TRUE)

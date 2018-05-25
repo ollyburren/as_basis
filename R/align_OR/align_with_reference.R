@@ -6,7 +6,7 @@ library(data.table)
 library(magrittr)
 
 TEST<-FALSE
-MISSING_FILE_DEFAULT<-'/scratch/ob219/as_basis/support_tab/additional_missing_from_basis.txt'
+MISSING_FILE_DEFAULT<-'/home/ob219/rds/hpc-workas_basis/support_tab/additional_missing_from_basis.txt'
 option_list = list(
         make_option(c("-i", "--input"), type="character", default=NULL,
               help="input tab file to process", metavar="character"),
@@ -24,16 +24,22 @@ if(!TEST){
   args = parse_args(opt_parser)
 }else{
   args <- list(
-      ref='/scratch/ob219/as_basis/support_tab/as_basis_snp_support.tab',
+      ref='/home/ob219/rds/hpc-workas_basis/support_tab/as_basis_snp_support.tab',
       output='~/tmp/test_align.tab',
-      input='/scratch/ob219/as_basis/gwas_stats/processed//bb:20002_1065:self_reported_hypertension.tab',
+      input='/home/ob219/rds/hpc-workas_basis/gwas_stats/processed//bb:20002_1065:self_reported_hypertension.tab',
       effect_allele='a2',
       missing_file=MISSING_FILE_DEFAULT
   )
 }
 
 message(sprintf("##############\nProcessing %s\n##############",args$input))
+
 ref <- fread(args$ref)
+## here we remove SNPs that we are not able to align properly
+if(file.exists(args$missing_file)){
+  exclude.pid <- scan(args$missing_file,character())
+  ref <- ref[!pid %in% exclude.pid,]
+}
 setkey(ref,pid)
 setnames(ref,c('pid','ref_a1','ref_a2','ref_a1.af','ld.block'))
 input <- fread(args$input)[nchar(a1)==1 & nchar(a2)==1,]
@@ -92,14 +98,18 @@ write.table(out,file=args$output,quote=FALSE,row.names=FALSE,sep='\t')
 if(FALSE){
   library(data.table)
   rscript <- '/home/ob219/git/as_basis/R/align_OR/align_with_reference.R'
-  process.dir<-'/scratch/ob219/as_basis/gwas_stats/processed/'
-  manifest <- fread('/scratch/ob219/as_basis/support_tab/as_manifest_december.tab')
-  out.dir <- '/home/ob219/scratch/as_basis/gwas_stats/input_files/'
-  ref<-'/scratch/ob219/as_basis/support_tab/as_basis_snp_support.tab'
+  process.dir<-'/home/ob219/rds/hpc-work/as_basis/gwas_stats/filter_feb_2018_w_ms/unaligned'
+  manifest <- fread('/home/ob219/git/as_basis/manifest/as_manifest_mar_2018.csv')[include=='Y',]
+  #manifest <- fread('/home/ob219/git/as_basis/manifest/as_manifest_feb_2018_w_ms.csv')[include=='Y',]
+  out.dir <- '/home/ob219/rds/hpc-work/as_basis/gwas_stats/filter_feb_2018_w_ms/aligned'
+  ref<-'/home/ob219/rds/hpc-work/as_basis/support_tab/as_basis_snp_support_feb_2018_w_ms.tab'
+  #missing.dir <- '/home/ob219/rds/hpc-work/as_basis/gwas_stats/filter_feb_2018/unprocessed/'
   all.cmds <- lapply(1:nrow(manifest),function(i){
+    #template <- "Rscript --vanilla %s -r %s -i %s -a %s -o %s -m %s"
     template <- "Rscript --vanilla %s -r %s -i %s -a %s -o %s"
     ifile <- file.path(process.dir,sprintf("%s.tab",manifest$disease[i]))
     ofile<-file.path(out.dir,basename(ifile))
+    #mfile <- file.path(missing.dir,basename(ifile))
     ef <- manifest$effect_allele[i]
     sprintf(template,rscript,ref,ifile,ef,ofile)
   })

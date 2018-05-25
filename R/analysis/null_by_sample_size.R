@@ -4,7 +4,7 @@
 library(cupcake)
 library(optparse)
 
-TEST <- FALSE # set to true when debugging
+TEST <- TRUE # set to true when debugging
 DEFAULT.SUPPORT.DIR <- '/home/ob219/scratch/as_basis/support_tab'
 DEFAULT.SNPSTATS.DIR <- '/home/ob219/scratch/as_basis/snpStats/basis_1kg/'
 DEFAULT.N.SIMS <- 50
@@ -21,7 +21,7 @@ DEFAULT.REF.AF.FILE <- 'as_basis_snp_support.tab'
 filterVCF <- function(){
   bcft <- '~/bin/bcftools-1.4/bcftools'
   vcf.dir<-'/home/ob219/scratch/DATA/1kgenome/VCF/EUR/by.chr.phase1/'
-  out.dir <- '/home/ob219/scratch/as_basis/snpStats/basis_1kg/'
+  out.dir <- '/home/ob219/scratch/as_basis/snpStats/basis_1kg_feb/'
   s.DT <- split(study1.DT[,.(chr,position)],study1.DT$chr)
   for(chr in names(s.DT)){
       message(sprintf("Processing %s",chr))
@@ -41,9 +41,11 @@ filterVCF <- function(){
 
 cacheBasis <- function(args){
   support.dir <- args$support_dir
-  ref_af_file<-file.path(support.dir,DEFAULT.REF.AF.FILE)
+  ref_af_file<-file.path('/scratch/ob219/as_basis/support_tab/as_basis_snp_support_feb_2018.tab')
   ld_file<-file.path(support.dir,DEFAULT.LD.BLOCK.FILE)
-  m_file<-file.path(support.dir,DEFAULT.MANIFEST.FILE)
+  #m_file<-file.path(support.dir,DEFAULT.MANIFEST.FILE)
+  m_file <- file.path('/home/ob219/git/as_basis/manifest/as_manifest_feb_2018.csv')
+  ld_file<-file.path(support.dir,DEFAULT.LD.BLOCK.FILE)
   basis.DT<-get_gwas_data(m_file,ref_af_file,args$gwas_data_dir)
   shrink.DT<-compute_shrinkage_metrics(basis.DT)
   basis.mat.emp <- create_ds_matrix(basis.DT,shrink.DT,'emp')
@@ -90,7 +92,7 @@ if(!TEST){
     prefix = basename(tempfile(pattern=sprintf("%s_",trait))),
     n_sims = 2,
     out_dir = '~/tmp/test_distance/',
-    gwas_data_dir = DEFAULT.GWAS.DATA.DIR,
+    gwas_data_dir = '/scratch/ob219/as_basis/gwas_stats/filter_feb_2018/aligned',
     cache_file = '~/tmp/feb_2018_as_basis_cache.RDS'
   )
   print(args)
@@ -109,9 +111,10 @@ if(!file.exists(args$cache_file)){
 
 ## simulate
 support.dir <- args$support_dir
-ref_af_file<-file.path(support.dir,DEFAULT.REF.AF.FILE)
+ref_af_file<-file.path('/scratch/ob219/as_basis/support_tab/as_basis_snp_support_feb_2018.tab')
 ld_file<-file.path(support.dir,DEFAULT.LD.BLOCK.FILE)
-m_file<-file.path(support.dir,DEFAULT.MANIFEST.FILE)
+#m_file<-file.path(support.dir,DEFAULT.MANIFEST.FILE)
+m_file <- file.path('/home/ob219/git/as_basis/manifest/as_manifest_feb_2018.csv')
 study1.DT<-get_gwas_data(m_file,ref_af_file,args$gwas_data_dir,FALSE,args$trait)
 study1.DT <- study1.DT[cache.obj$shrink[,.(pid,emp_maf_se)]]
 ## simulate under the null
@@ -121,7 +124,8 @@ study1.DT[,or:=1]
 ## need chr and perhaps position
 study1.DT[,c('chr','position'):=tstrsplit(pid,':')]
 message(sprintf("Simulate %d studies",args$n_sims))
-s1.sim <- simulate_study(study1.DT,args$snp_stats_dir,shrink_beta=FALSE,n_sims=args$n_sims,quiet=TRUE)
+s1.sim <- simulate_study(study1.DT,args$snp_stats_dir,shrink_beta=FALSE,n_sims=args$n_sims,quiet=FALSE)
+#s1.sim <- simulate_study(test,args$snp_stats_dir,shrink_beta=FALSE,n_sims=args$n_sims,quiet=FALSE)
 
 ## compute the projection on 10 at a time to prevent huge matrix generation eating all memory
 idx <- split(1:nrow(s1.sim),s1.sim$trait)

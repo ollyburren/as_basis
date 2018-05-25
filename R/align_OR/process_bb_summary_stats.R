@@ -15,7 +15,7 @@ if(!TEST){
 	    stop("At least one argument must be supplied (output file)", call.=FALSE)
     }
 }else{
-  args <- list(file='/home/ob219/scratch/as_basis/bb/summary_stats//20002_1261:Non.cancer.illness.code..self.reported..multiple.sclerosis.RDS')
+  args <- list(file='/home/ob219/rds/hpc-work/as_basis/bb/summary_stats//20002_1261:Non.cancer.illness.code..self.reported..multiple.sclerosis.RDS')
 }
 
 
@@ -49,15 +49,16 @@ SElor<-function(n,n1,Sx,Sxy){
 }
 
 
-data.dir<-'/home/ob219/scratch/as_basis/bb/summary_stats/'
-out.dir<-'/home/ob219/scratch/as_basis/gwas_stats/processed/'
-bb_phenofile<-'/home/ob219/scratch/as_basis/bb/phenosummary_final_11898_18597.tsv'
+data.dir<-'/home/ob219/rds/hpc-work/as_basis/bb/summary_stats/'
+out.dir<-'/home/ob219/rds/hpc-work/as_basis/gwas_stats/processed_new/'
+bb_phenofile<-'/home/ob219/rds/hpc-work/as_basis/bb/phenosummary_final_11898_18597.tsv'
 all.summ.files<-list.files(path=data.dir,pattern='*.RDS',full.names=TRUE)
 
 ## this is a list of the SNPs that are in the basis - we don't care about SNPs that are not in this list
 
-#basis.snps<-readRDS('/home/ob219/scratch/as_basis/basis_snp_positions.RDS')
-bb_var_info<-readRDS('/home/ob219/scratch/as_basis/bb/variants_prefiltered.RDS')
+#basis.snps<-readRDS('/home/ob219/rds/hpc-work/as_basis/basis_snp_positions.RDS')
+#bb_var_info<-readRDS('/home/ob219/rds/hpc-work/as_basis/bb/variants_prefiltered.RDS')
+bb_var_info<-readRDS('/home/ob219/rds/hpc-work/as_basis/bb/variants_prefiltered_1kg_EUR_0.01.RDS')
 ## read in phenotype file
 pheno<-fread(bb_phenofile)
 ## should probably do this on the queue as these are very large files
@@ -108,7 +109,7 @@ stats.filter[,c('theta.pval','theta.Z','n0','n1'):=list(2*(pnorm(abs(theta/se.th
 #stats.filter[which(stats.filter$or<1),c('or','risk.allele','other.allele'):=list(1/or,A1,A2)]
 ## output
 stats.filter[,pid:=paste(chr,position,sep=':')]
-out.DT <- stats.filter[,.(pid,A1,A2,or,theta.pval)]
+out.DT <- stats.filter[,.(pid,A1,A2,signif(or,digits=4),signif(theta.pval,digits=4))]
 
 trait<-paste(gsub('[.]+','_',sub('.*:Non\\.cancer\\.illness\\.code\\.\\.(.*)\\.RDS','\\1',basename(f))),'out',sep='.')
 setnames(out.DT,c('pid','a1','a2','or','p.value'))
@@ -123,7 +124,7 @@ message(sprintf("Save %s to %s",trait,file.path(out.dir,fout)))
 if(FALSE){
   ## code to generate script to run on HPC
   foo<-do.call('c',lapply(list.files(path=data.dir,pattern='*.RDS',full.names=TRUE),function(f){
-    sprintf('Rscript --vanilla /home/ob219/git/as_basis/R/process_bb_summary_stats.R -f %s',f)
+    sprintf('Rscript --vanilla /home/ob219/git/as_basis/R/align_OR/process_bb_summary_stats.R -f %s',f)
   }))
   write(foo,file='/home/ob219/git/as_basis/sh/process_bb.txt')
 }

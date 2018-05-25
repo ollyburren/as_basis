@@ -1,6 +1,6 @@
 library(data.table)
 
-scratch.dir<-'/home/ob219/scratch/as_basis'
+scratch.dir<-'/home/ob219/rds/hpc-work/as_basis'
 bb_pheno_url <- 'https://www.dropbox.com/s/oe5q85454vhc3hi/phenosummary_final_11898_18597.tsv?dl=0'
 bb_pheno_file <- file.path(scratch.dir,'bb','phenosummary_final_11898_18597.tsv')
 if(!file.exists(bb_pheno_file)){
@@ -9,7 +9,8 @@ if(!file.exists(bb_pheno_file)){
 pheno <- fread(bb_pheno_file)
 
 ## use self reported instead. The ICD classifications are incomplete meaning that the controls are polluted
-bb_codes<-c('20002_1226','20002_1225','20002_1111','20002_1452','20002_1222','20002_1261','20002_1313','20002_1462','20002_1459','20002_1463','20002_1464','20002_1381','20002_1456')
+#bb_codes<-c('20002_1226','20002_1225','20002_1111','20002_1452','20002_1222','20002_1261','20002_1313','20002_1462','20002_1459','20002_1463','20002_1464','20002_1381','20002_1456','20002_1477','20002_1453')
+bb_codes<-c('20002_1477','20002_1453')
 
  ## get these
 curated<-subset(pheno,Field.code %in% bb_codes)[,.(Field.code,Field,N.cases,N.controls)]
